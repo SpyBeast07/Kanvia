@@ -4,10 +4,10 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fade, scale, slide } from 'svelte/transition';
-	import { auth } from '$lib/auth.svelte.ts';
-	import { apiRequest } from '$lib/api.svelte.ts';
-	import { ui } from '$lib/ui.svelte.ts';
-	import { projectStore } from '$lib/projects.svelte.ts';
+	import { auth } from '$lib/auth.svelte';
+	import { apiRequest } from '$lib/api.svelte';
+	import { ui } from '$lib/ui.svelte';
+	import { projectStore } from '$lib/projects.svelte';
 	import Dialog from '$lib/Dialog.svelte';
 
 	let { children } = $props();
@@ -511,17 +511,7 @@
 		font-size: 1.5rem;
 	}
 
-	.shortcut {
-		position: absolute;
-		top: -0.5rem;
-		right: -1rem;
-		background: #030712;
-		color: var(--text-secondary);
-		font-size: 0.65rem;
-		padding: 0.1rem 0.4rem;
-		border-radius: 4px;
-		border: 1px solid var(--border-color);
-	}
+
 
 	.action-label {
 		font-size: 0.85rem;

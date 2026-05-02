@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiRequest } from '$lib/api.svelte.ts';
-	import { ui } from '$lib/ui.svelte.ts';
-	import { projectStore, type Column } from '$lib/projects.svelte.ts';
-	import { auth } from '$lib/auth.svelte.ts';
+	import { apiRequest } from '$lib/api.svelte';
+	import { ui } from '$lib/ui.svelte';
+	import { projectStore, type Column } from '$lib/projects.svelte';
+	import { auth } from '$lib/auth.svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	interface Task {
@@ -190,7 +190,7 @@
 		return result;
 	});
 
-	let searchInput: HTMLInputElement;
+	let searchInput = $state<HTMLInputElement>();
 
 	$effect(() => {
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -203,7 +203,7 @@
 			} else if (e.key === 'c' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
 				e.preventDefault();
 				const maybeCol = projectStore.columns.find(c => c.name.toLowerCase() === 'maybe?');
-				if (maybeCol) handleAddTask(maybeCol.id);
+				if (maybeCol) handleAddTask(maybeCol.name);
 			}
 		};
 		window.addEventListener('keydown', handleKeydown);
@@ -231,6 +231,9 @@
 	onMount(() => {
 		if (projectStore.currentProject) {
 			loadTasks();
+		}
+		if (auth.token && auth.users.length === 0) {
+			auth.loadUsers();
 		}
 	});
 
@@ -263,7 +266,7 @@
 
 <div class="board-container" in:fade>
 	{#if gridViewColumn}
-		{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === gridViewColumn.toLowerCase())}
+		{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === gridViewColumn?.toLowerCase())}
 		<div class="grid-view-overlay">
 			<div class="grid-view-header">
 				<button class="back-btn" onclick={() => gridViewColumn = null}>
@@ -287,6 +290,11 @@
 							<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
 							<div class="meta-divider"></div>
 							<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
+							{#if task.assigned_to}
+								<div class="meta-divider"></div>
+								<div class="user-badge-small assigned">{auth.users.find(u => u.id === task.assigned_to)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
+								<span class="meta-item assignee">{auth.users.find(u => u.id === task.assigned_to)?.name.toUpperCase()}</span>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -393,6 +401,11 @@
 											<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
 											<div class="meta-divider"></div>
 											<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
+											{#if task.assigned_to}
+												<div class="meta-divider"></div>
+												<div class="user-badge-small assigned">{auth.users.find(u => u.id === task.assigned_to)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
+												<span class="meta-item assignee">{auth.users.find(u => u.id === task.assigned_to)?.name.toUpperCase()}</span>
+											{/if}
 										</div>
 									</div>
 								{/each}
@@ -791,6 +804,10 @@
 		color: white;
 	}
 
+	.user-badge-small.assigned {
+		background: #7c3aed;
+	}
+
 	.meta-item {
 		display: flex;
 		align-items: center;
@@ -804,6 +821,10 @@
 
 	.author {
 		color: var(--text-secondary);
+	}
+
+	.assignee {
+		color: #a78bfa;
 	}
 
 	.grid-view-overlay {

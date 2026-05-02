@@ -1,6 +1,6 @@
 import { auth } from './auth.svelte.ts';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export async function apiRequest(endpoint: string, method = 'GET', body?: any) {
     const token = auth.token;
