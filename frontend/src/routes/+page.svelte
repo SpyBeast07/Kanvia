@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { apiRequest } from '$lib/api.svelte.ts';
 	import { ui } from '$lib/ui.svelte.ts';
-	import { projectStore } from '$lib/projects.svelte.ts';
+	import { projectStore, type Column } from '$lib/projects.svelte.ts';
 	import { auth } from '$lib/auth.svelte.ts';
 	import { fade, scale } from 'svelte/transition';
 
@@ -23,6 +23,108 @@
 	let activeColumnId = $state<number | null>(null);
 	let draggedTaskId = $state<number | null>(null);
 	let gridViewColumn = $state<string | null>(null);
+	let columnMenuOpen = $state<number | null>(null);
+
+	function saveColumnState() {
+		if (!projectStore.currentProject) return;
+		const projectId = projectStore.currentProject.id;
+		const state = {
+			activeColumnId,
+			gridViewColumn
+		};
+		localStorage.setItem(`kanvia_col_state_${projectId}`, JSON.stringify(state));
+	}
+
+	function loadColumnState() {
+		if (!projectStore.currentProject) return;
+		const projectId = projectStore.currentProject.id;
+		const saved = localStorage.getItem(`kanvia_col_state_${projectId}`);
+		if (saved) {
+			try {
+				const state = JSON.parse(saved);
+				activeColumnId = state.activeColumnId;
+				gridViewColumn = state.gridViewColumn;
+			} catch (e) {
+				console.error('Failed to load column state:', e);
+			}
+		}
+	}
+
+	$effect(() => {
+		if (projectStore.currentProject) {
+			loadColumnState();
+		}
+	});
+
+	$effect(() => {
+		activeColumnId;
+		gridViewColumn;
+		saveColumnState();
+	});
+
+	function isDefaultColumn(columnName: string): boolean {
+		const nameLower = columnName.toLowerCase();
+		return nameLower === 'maybe?' || nameLower === 'done';
+	}
+
+	function getAddedColumns() {
+		const maybeIdx = projectStore.columns.findIndex(c => c.name.toLowerCase() === 'maybe?');
+		const doneIdx = projectStore.columns.findIndex(c => c.name.toLowerCase() === 'done');
+		if (maybeIdx === -1 || doneIdx === -1 || doneIdx <= maybeIdx) return [];
+		return projectStore.columns.slice(maybeIdx + 1, doneIdx);
+	}
+
+	async function handleMoveColumn(columnId: number, direction: 'left' | 'right') {
+		const addedCols = getAddedColumns();
+		const currentIdx = addedCols.findIndex(c => c.id === columnId);
+		if (currentIdx === -1) return;
+		
+		if (direction === 'left' && currentIdx > 0) {
+			const targetCol = addedCols[currentIdx - 1];
+			const currentCol = addedCols[currentIdx];
+			await swapColumnOrder(currentCol, targetCol);
+		} else if (direction === 'right' && currentIdx < addedCols.length - 1) {
+			const targetCol = addedCols[currentIdx + 1];
+			const currentCol = addedCols[currentIdx];
+			await swapColumnOrder(currentCol, targetCol);
+		}
+		columnMenuOpen = null;
+	}
+
+	async function swapColumnOrder(colA: Column, colB: Column) {
+		const tempOrder = colA.order;
+		try {
+			await apiRequest(`/columns/${colA.id}`, 'PATCH', { order: colB.order });
+			await apiRequest(`/columns/${colB.id}`, 'PATCH', { order: tempOrder });
+			await projectStore.loadColumns(projectStore.currentProject?.id!);
+		} catch (err: any) {
+			ui.alert('Failed to reorder column: ' + err.message, 'Error');
+		}
+	}
+
+	async function handleDeleteColumn(columnId: number, columnName: string) {
+		const confirm = await ui.confirm(`Delete column "${columnName}"? All tasks in this column will be lost.`, 'Delete Column');
+		if (!confirm) return;
+		try {
+			await apiRequest(`/columns/${columnId}`, 'DELETE');
+			await projectStore.loadColumns(projectStore.currentProject?.id!);
+		} catch (err: any) {
+			ui.alert('Failed to delete column: ' + err.message, 'Error');
+		}
+		columnMenuOpen = null;
+	}
+
+	async function handleEditColumn(column: Column) {
+		const newName = await ui.prompt('Enter new column name:', 'Edit Column', column.name);
+		if (!newName || newName === column.name) return;
+		try {
+			await apiRequest(`/columns/${column.id}`, 'PATCH', { name: newName });
+			await projectStore.loadColumns(projectStore.currentProject?.id!);
+		} catch (err: any) {
+			ui.alert('Failed to rename column: ' + err.message, 'Error');
+		}
+		columnMenuOpen = null;
+	}
 
 	function toggleColumn(columnId: number) {
 		activeColumnId = activeColumnId === columnId ? null : columnId;
@@ -205,13 +307,36 @@
 						ondrop={(e) => handleDrop(e, column.name)}
 					>
 						<div class="center-col-header">
-							<h3 
+							{#if !isDefaultColumn(column.name)}
+								<div class="col-menu-wrapper">
+									<button class="col-menu-btn" onclick={() => columnMenuOpen = columnMenuOpen === column.id ? null : column.id} aria-label="Column Menu">
+										<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+									</button>
+									{#if columnMenuOpen === column.id}
+										<div class="col-menu-dropdown">
+											<button class="col-menu-item" onclick={() => handleEditColumn(column)}>Edit column</button>
+											<button 
+												class="col-menu-item" 
+												disabled={getAddedColumns().length <= 1}
+												onclick={() => handleMoveColumn(column.id, 'left')}
+											>Move to the left</button>
+											<button 
+												class="col-menu-item" 
+												disabled={getAddedColumns().length <= 1}
+												onclick={() => handleMoveColumn(column.id, 'right')}
+											>Move to the right</button>
+											<button class="col-menu-item col-menu-delete" onclick={() => handleDeleteColumn(column.id, column.name)}>Delete column</button>
+										</div>
+									{/if}
+								</div>
+							{/if}
+							<button 
 								class="center-col-title" 
 								style={!isMaybe ? 'cursor: pointer;' : ''}
 								onclick={() => !isMaybe && toggleColumn(column.id)}
 							>
 								{column.name}
-							</h3>
+							</button>
 							<button class="grid-view-btn" aria-label="Grid View" onclick={() => gridViewColumn = column.name}>
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
 							</button>
@@ -283,7 +408,6 @@
 		display: flex;
 		flex-direction: column;
 		background: var(--bg-primary);
-		height: calc(100vh - 120px); /* Account for header */
 	}
 
 	.board-header {
@@ -329,7 +453,7 @@
 		justify-content: center;
 		gap: 2rem;
 		padding: 0 1rem;
-		overflow: hidden;
+		align-items: flex-start;
 	}
 
 	.collapsed-column {
@@ -415,14 +539,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
-		overflow-y: auto;
 		padding-bottom: 4rem;
 	}
 
 	.center-col-header {
-		display: flex;
-		justify-content: space-between;
+		display: grid;
+		grid-template-columns: auto 1fr auto;
 		align-items: center;
+		gap: 0.5rem;
 	}
 
 	.center-col-title {
@@ -432,6 +556,11 @@
 		letter-spacing: 0.1em;
 		color: var(--text-primary);
 		margin: 0;
+		grid-column: 2;
+		justify-self: stretch;
+		background: none;
+		border: none;
+		padding: 0.5rem;
 	}
 
 	.grid-view-btn {
@@ -440,9 +569,79 @@
 		color: var(--text-muted);
 		cursor: pointer;
 		transition: color 0.2s;
+		grid-column: 3;
+		padding: 0.5rem;
 	}
 
 	.grid-view-btn:hover { color: white; }
+
+	.col-menu-wrapper {
+		position: relative;
+		grid-column: 1;
+	}
+
+	.col-menu-btn {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: color 0.2s;
+	}
+
+	.col-menu-btn:hover { color: white; }
+
+	.col-menu-dropdown {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		background: #1e293b;
+		border: 1px solid var(--border-color);
+		border-radius: 0.5rem;
+		min-width: 160px;
+		z-index: 100;
+		overflow: hidden;
+	}
+
+	.col-menu-item {
+		width: 100%;
+		padding: 0.75rem 1rem;
+		background: none;
+		border: none;
+		color: var(--text-primary);
+		text-align: left;
+		cursor: pointer;
+		font-size: 0.85rem;
+		transition: background 0.2s;
+	}
+
+	.col-menu-item:hover {
+		background: rgba(255,255,255,0.1);
+	}
+
+	.col-menu-item:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.col-menu-item:disabled:hover {
+		background: none;
+	}
+
+	.col-menu-item:hover {
+		background: rgba(255,255,255,0.1);
+	}
+
+	.col-menu-delete {
+		color: #ef4444;
+	}
+
+	.col-menu-delete:hover {
+		background: rgba(239,68,68,0.1);
+	}
 
 	.add-card-wrapper {
 		border: 1px solid rgba(59, 130, 246, 0.3);

@@ -40,6 +40,10 @@ class ProjectColumnRead(ProjectColumnBase):
     id: int
     project_id: int
 
+class ProjectColumnUpdate(BaseModel):
+    name: Optional[str] = None
+    order: Optional[int] = None
+
 # Task Schemas
 class TaskBase(BaseModel):
     title: str

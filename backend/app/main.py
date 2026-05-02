@@ -9,7 +9,7 @@ from .models import User, Project, Task, ProjectMemberLink, UserRole, ProjectCol
 from .schemas import (
     UserCreate, UserRead, ProjectCreate, ProjectRead,
     TaskCreate, TaskRead, TaskUpdate, Token, LoginRequest,
-    ProjectColumnCreate, ProjectColumnRead
+    ProjectColumnCreate, ProjectColumnRead, ProjectColumnUpdate
 )
 from .auth import (
     get_password_hash, verify_password, create_access_token,
@@ -184,6 +184,41 @@ def create_column(
     session.commit()
     session.refresh(new_column)
     return new_column
+
+@app.patch("/api/columns/{column_id}", response_model=ProjectColumnRead)
+def update_column(
+    column_id: int,
+    column_data: ProjectColumnUpdate,
+    current_user: User = Depends(check_admin),
+    session: Session = Depends(get_session)
+):
+    column = session.get(ProjectColumn, column_id)
+    if not column:
+        raise HTTPException(status_code=404, detail="Column not found")
+    
+    if column_data.name is not None:
+        column.name = column_data.name
+    if column_data.order is not None:
+        column.order = column_data.order
+    
+    session.add(column)
+    session.commit()
+    session.refresh(column)
+    return column
+
+@app.delete("/api/columns/{column_id}")
+def delete_column(
+    column_id: int,
+    current_user: User = Depends(check_admin),
+    session: Session = Depends(get_session)
+):
+    column = session.get(ProjectColumn, column_id)
+    if not column:
+        raise HTTPException(status_code=404, detail="Column not found")
+    
+    session.delete(column)
+    session.commit()
+    return {"message": "Column deleted"}
 
 @app.post("/api/tasks", response_model=TaskRead)
 def create_task(
