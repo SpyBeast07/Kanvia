@@ -20,6 +20,43 @@
 
 	let tasks = $state<Task[]>([]);
 	let isLoading = $state(true);
+	let activeColumnId = $state<number | null>(null);
+	let draggedTaskId = $state<number | null>(null);
+
+	function toggleColumn(columnId: number) {
+		activeColumnId = activeColumnId === columnId ? null : columnId;
+	}
+
+	function handleDragStart(e: DragEvent, taskId: number) {
+		draggedTaskId = taskId;
+		e.dataTransfer?.setData('text/plain', taskId.toString());
+	}
+
+	async function handleDrop(e: DragEvent, columnName: string) {
+		e.preventDefault();
+		const taskIdStr = e.dataTransfer?.getData('text/plain');
+		if (!taskIdStr) return;
+		const taskId = parseInt(taskIdStr, 10);
+		
+		const taskIndex = tasks.findIndex(t => t.id === taskId);
+		if (taskIndex === -1) return;
+		
+		const previousStatus = tasks[taskIndex].status;
+		if (previousStatus === columnName) {
+			draggedTaskId = null;
+			return;
+		}
+
+		tasks[taskIndex] = { ...tasks[taskIndex], status: columnName };
+		
+		try {
+			await apiRequest(`/tasks/${taskId}`, 'PATCH', { status: columnName });
+		} catch (err: any) {
+			ui.alert('Failed to move task: ' + err.message, 'Error');
+			tasks[taskIndex] = { ...tasks[taskIndex], status: previousStatus };
+		}
+		draggedTaskId = null;
+	}
 
 	const filteredTasks = $derived(() => {
 		let result = tasks;
@@ -120,66 +157,90 @@
 	</div>
 
 	<div class="fizzy-layout">
-		<!-- Left Sidebar -->
-		<div class="sidebar left-sidebar">
-			{#each projectStore.columns.filter(c => c.name.toLowerCase() === 'not now') as column}
-				<div class="collapsed-column">
-					<div class="collapsed-count">{tasks.filter(t => t.status.toLowerCase() === column.name.toLowerCase()).length}</div>
-					<div class="vertical-title">{column.name}</div>
-				</div>
-			{/each}
-		</div>
-
-		<!-- Center Area -->
-		<div class="center-area">
-			{#each projectStore.columns.filter(c => c.name.toLowerCase() === 'maybe?') as column}
-				<div class="center-column">
+		{#each projectStore.columns as column}
+			{@const isMaybe = column.name.toLowerCase() === 'maybe?'}
+			{@const isExpanded = isMaybe || column.id === activeColumnId}
+			{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === column.name.toLowerCase())}
+			
+			{#if isExpanded}
+				<div 
+					class="center-column"
+					role="region"
+					ondragover={(e) => e.preventDefault()}
+					ondrop={(e) => handleDrop(e, column.name)}
+				>
 					<div class="center-col-header">
-						<h3 class="center-col-title">{column.name}</h3>
-						<button class="grid-view-btn" aria-label="Grid View">
-							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-						</button>
+						<h3 
+							class="center-col-title" 
+							style={!isMaybe ? 'cursor: pointer;' : ''}
+							onclick={() => !isMaybe && toggleColumn(column.id)}
+						>
+							{column.name}
+						</h3>
+						{#if isMaybe}
+							<button class="grid-view-btn" aria-label="Grid View">
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+							</button>
+						{:else}
+							<div style="width: 20px;"></div>
+						{/if}
 					</div>
 					
-					<div class="add-card-wrapper">
-						<button class="add-card-btn" onclick={() => handleAddTask(column.name)}>
-							Add a card <span class="kbd">C</span>
-						</button>
-					</div>
+					{#if isMaybe}
+						<div class="add-card-wrapper">
+							<button class="add-card-btn" onclick={() => handleAddTask(column.name)}>
+								Add a card <span class="kbd">C</span>
+							</button>
+						</div>
+					{/if}
 
 					<div class="tasks-list">
-						{#each filteredTasks().filter(t => t.status.toLowerCase() === column.name.toLowerCase()) as task}
-							<div class="task-card">
-								<div class="task-card-header">
-									<span class="task-id">{task.id}</span>
-									<span class="task-project">{projectStore.currentProject?.name}</span>
-								</div>
-								<h4 class="task-title">{task.title}</h4>
-								<div class="task-meta">
-									<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map(n=>n[0]).join('') || '?'}</div>
-									<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
-									<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
-									<div class="meta-divider"></div>
-									<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
-								</div>
+						{#if colTasks.length === 0}
+							<div class="empty-dropzone">
+								Drag cards here
 							</div>
-						{/each}
+						{:else}
+							{#each colTasks as task}
+								<div 
+									class="task-card"
+									draggable="true"
+									role="button"
+									tabindex="0"
+									ondragstart={(e) => handleDragStart(e, task.id)}
+									style={draggedTaskId === task.id ? 'opacity: 0.5;' : ''}
+								>
+									<div class="task-card-header">
+										<span class="task-id">{task.id}</span>
+										<span class="task-project">{projectStore.currentProject?.name}</span>
+									</div>
+									<h4 class="task-title">{task.title}</h4>
+									<div class="task-meta">
+										<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
+										<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
+										<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
+										<div class="meta-divider"></div>
+										<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
+									</div>
+								</div>
+							{/each}
+						{/if}
 					</div>
 				</div>
-			{/each}
-		</div>
-
-		<!-- Right Sidebar -->
-		<div class="sidebar right-sidebar">
-			{#each projectStore.columns.filter(c => c.name.toLowerCase() !== 'not now' && c.name.toLowerCase() !== 'maybe?') as column}
-				<div class="collapsed-column">
-					<div class="collapsed-count">{tasks.filter(t => t.status.toLowerCase() === column.name.toLowerCase()).length}</div>
+			{:else}
+				<button 
+					class="collapsed-column" 
+					onclick={() => toggleColumn(column.id)}
+					ondragover={(e) => e.preventDefault()}
+					ondrop={(e) => handleDrop(e, column.name)}
+				>
+					<div class="collapsed-count">{colTasks.length}</div>
 					<div class="vertical-title">{column.name}</div>
-				</div>
-			{/each}
-			<div class="add-col-wrapper">
-				<button class="add-col-mini" onclick={handleAddColumn}>+</button>
-			</div>
+				</button>
+			{/if}
+		{/each}
+
+		<div class="add-col-wrapper">
+			<button class="add-col-mini" onclick={handleAddColumn}>+</button>
 		</div>
 	</div>
 </div>
@@ -239,29 +300,23 @@
 		overflow: hidden;
 	}
 
-	.sidebar {
-		display: flex;
-		gap: 1rem;
-	}
-
-	.left-sidebar {
-		justify-content: flex-end;
-	}
-
-	.right-sidebar {
-		justify-content: flex-start;
-	}
-
 	.collapsed-column {
 		width: 48px;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		padding-top: 2.5rem;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding-left: 0;
+		padding-right: 0;
+		transition: opacity 0.2s;
 	}
 
-	.left-sidebar .collapsed-column { border-right: none; }
-	.right-sidebar .collapsed-column { border-left: none; }
+	.collapsed-column:hover {
+		opacity: 0.8;
+	}
 
 	.collapsed-count {
 		width: 32px;
@@ -311,20 +366,25 @@
 
 	.add-col-mini:hover { color: white; }
 
-	.center-area {
-		flex: 0 1 auto;
+	.empty-dropzone {
+		border: 2px dashed rgba(255,255,255,0.1);
+		border-radius: 12px;
 		display: flex;
+		align-items: center;
 		justify-content: center;
-		overflow-y: auto;
-		padding: 0;
-		padding-bottom: 4rem;
+		height: 100px;
+		color: var(--text-secondary);
+		font-weight: 700;
 	}
 
 	.center-column {
+		flex: 0 1 auto;
 		width: 500px;
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
+		overflow-y: auto;
+		padding-bottom: 4rem;
 	}
 
 	.center-col-header {
