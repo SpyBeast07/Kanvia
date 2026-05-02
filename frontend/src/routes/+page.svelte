@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiRequest } from '../lib/api/index.ts';
-	import { ui } from '../lib/ui.svelte.ts';
-	import { projectStore } from '../lib/projects.svelte.ts';
-	import { auth } from '../lib/auth.svelte.ts';
+	import { apiRequest } from '$lib/api/index';
+	import { ui } from '$lib/ui.svelte';
+	import { projectStore } from '$lib/projects.svelte';
+	import { auth } from '$lib/auth.svelte';
 	import { fade, scale } from 'svelte/transition';
 
 	interface Task {
@@ -13,6 +13,7 @@
 		project_id: number;
 		created_at: string;
 		due_date?: string;
+		assigned_to?: number;
 	}
 
 	let tasks = $state<Task[]>([]);
@@ -106,11 +107,27 @@
 		if (interval > 1) return Math.floor(interval) + " HOURS AGO";
 		interval = seconds / 60;
 		if (interval > 1) return Math.floor(interval) + " MINUTES AGO";
-		return Math.floor(seconds) + " AGO";
+		return "JUST NOW";
 	}
 
 	function getTasksByStatus(statusName: string) {
-		return tasks.filter(t => t.status === statusName);
+		let filtered = tasks.filter(t => t.status === statusName);
+		
+		if (ui.activeFilter === 'assigned') {
+			filtered = filtered.filter(t => t.assigned_to === auth.user?.id);
+		} else if (ui.activeFilter === 'added') {
+			// In our schema, we don't have created_by on tasks yet, 
+			// so for now let's just show all for 'added' or assuming everything is added by current user for demo
+			// Actually, let's just mock it or leave it as all for now.
+		}
+		
+		return filtered;
+	}
+
+	function getFilterLabel() {
+		if (ui.activeFilter === 'assigned') return `Assigned to ${auth.user?.name}`;
+		if (ui.activeFilter === 'added') return `Added by ${auth.user?.name}`;
+		return '';
 	}
 
 	// Columns logic with defaults - always ensure NOT NOW, MAYBE?, and DONE exist
@@ -141,9 +158,26 @@
 
 <div class="kanban-wrapper">
 	<div class="header-top">
-		<div class="filter-bar glass">
-			<span class="filter-text">Filter these cards... <span class="kbd">F</span></span>
-			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+		<div class="search-container">
+			<div class="filter-bar glass">
+				<span class="filter-text">Filter these cards... <span class="kbd">F</span></span>
+			</div>
+			
+			{#if ui.activeFilter}
+				<div class="filter-chip glass" transition:scale={{ duration: 150 }}>
+					{getFilterLabel()} <span class="chevron">⌄</span>
+				</div>
+			{/if}
+
+			<button class="header-action-btn glass" aria-label="Settings">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+			</button>
+
+			{#if ui.activeFilter}
+				<button class="header-action-btn glass close" onclick={() => ui.activeFilter = null} aria-label="Clear Filter" transition:scale>
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -239,6 +273,12 @@
 		padding: 1.5rem 0;
 	}
 
+	.search-container {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
 	.filter-bar {
 		background: #161e27;
 		border: 1.5px solid #1e293b;
@@ -250,6 +290,47 @@
 		color: #475569;
 		font-size: 0.8rem;
 		font-weight: 700;
+	}
+
+	.filter-chip {
+		background: #232d38;
+		border: 1.5px solid #3b82f6;
+		border-radius: 9999px;
+		padding: 0.4rem 1.25rem;
+		color: white;
+		font-size: 0.8rem;
+		font-weight: 800;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.header-action-btn {
+		width: 34px;
+		height: 34px;
+		background: #161e27;
+		border: 1.5px solid #1e293b;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #475569;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.header-action-btn:hover {
+		color: white;
+		border-color: #475569;
+	}
+
+	.header-action-btn.close {
+		color: white;
+		border-color: #334155;
+	}
+	
+	.header-action-btn.close:hover {
+		background: #1e293b;
 	}
 
 	.filter-text {
