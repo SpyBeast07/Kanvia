@@ -24,81 +24,86 @@
 	});
 </script>
 
-<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
-	<div>
-		<h1 style="font-size: 1.75rem; color: var(--text-primary); margin-bottom: 0.25rem;">Task Board</h1>
-		<p style="color: var(--text-secondary); font-size: 0.875rem;">Manage and track your team's progress in real-time.</p>
+<div style="max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; padding: 0 1rem;">
+	<!-- Search/Filter Bar -->
+	<div style="width: 100%; max-width: 320px; position: relative; margin-bottom: 2.5rem;">
+		<input 
+			type="text" 
+			placeholder="Filter these cards... [F]" 
+			style="width: 100%; background: #0b1219; border: 1.5px solid #1e293b; border-radius: 9999px; padding: 0.6rem 1.5rem; color: #94a3b8; font-size: 0.9rem; text-align: center; font-weight: 600;"
+		/>
+		<button style="position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; font-size: 1.25rem;">
+			⠿
+		</button>
 	</div>
-	<button class="btn-primary">
-		<span style="font-size: 1.25rem; font-weight: 400;">+</span>
-		New Task
-	</button>
+
+	<!-- Kanban Columns -->
+	<div style="width: 100%; display: grid; grid-template-columns: 80px 1fr 80px; gap: 0; align-items: start;">
+		<!-- Left Vertical Label -->
+		<div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding-top: 3.5rem;">
+			<div style="width: 40px; height: 40px; border: 2.5px solid #1e293b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 900; color: #475569;">0</div>
+			<div class="vertical-label">NOT NOW</div>
+		</div>
+
+		<!-- Main Center Column -->
+		<div style="display: flex; flex-direction: column; gap: 1rem;">
+			<div style="text-align: center; color: #ffffff; font-size: 0.85rem; font-weight: 900; letter-spacing: 0.15em; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; padding: 0 0.75rem;">
+				<span style="width: 24px;"></span>
+				MAYBE?
+				<span style="font-size: 1.5rem; color: #475569; cursor: pointer;">⠿</span>
+			</div>
+
+			<!-- Add Card Section -->
+			<div class="glass" style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 120px; border: 1.5px solid #1e293b; background: #0b1219;">
+				<button class="btn-primary" style="display: flex; align-items: center; gap: 0.75rem;">
+					Add a card <span style="background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: 900;">C</span>
+				</button>
+			</div>
+
+			<!-- Tasks -->
+			<div class="glass" style="padding: 1.75rem; background: #161e27; border: 1.5px solid #1e293b;">
+				<div style="font-size: 0.75rem; color: #475569; font-weight: 900; margin-bottom: 0.75rem; display: flex; gap: 0.75rem;">
+					<span>11</span>
+					<span style="text-transform: uppercase; letter-spacing: 0.05em;">PLAYGROUND</span>
+				</div>
+				<h2 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 1.25rem;">First, rename this card</h2>
+				<div style="display: flex; align-items: center; gap: 1.25rem;">
+					<div style="width: 44px; height: 44px; background: #fbbf24; color: #451a03; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 900;">KG</div>
+					<div style="font-size: 0.75rem; color: #475569; font-weight: 800; line-height: 1.5;">
+						<div style="color: #64748b;">ADDED 2 DAYS AGO • 🔄 2 DAYS AGO</div>
+						<div style="color: #94a3b8; font-weight: 900;">KUSHAGRA G.</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="glass" style="padding: 1.75rem; background: #161e27; border: 1.5px solid #1e293b;">
+				<div style="font-size: 0.75rem; color: #475569; font-weight: 900; margin-bottom: 0.75rem; display: flex; gap: 0.75rem;">
+					<span>10</span>
+					<span style="text-transform: uppercase; letter-spacing: 0.05em;">PLAYGROUND</span>
+				</div>
+				<h2 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 1.25rem;">Second, move this card to NOT NOW</h2>
+				<div style="display: flex; align-items: center; gap: 1.25rem;">
+					<div style="width: 44px; height: 44px; background: #fbbf24; color: #451a03; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 900;">KG</div>
+					<div style="font-size: 0.75rem; color: #475569; font-weight: 800; line-height: 1.5;">
+						<div style="color: #64748b;">ADDED 2 DAYS AGO • 🔄 2 DAYS AGO</div>
+						<div style="color: #94a3b8; font-weight: 900;">KUSHAGRA G.</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Right Vertical Label -->
+		<div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding-top: 3.5rem;">
+			<div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem;">
+				<div style="width: 40px; height: 40px; border: 2.5px solid #1e293b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 900; color: #475569;">0</div>
+				<span style="font-size: 2rem; color: #1e293b; font-weight: 900;">+</span>
+			</div>
+			<div class="vertical-label">DONE</div>
+		</div>
+	</div>
 </div>
 
-<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
-	<!-- To Do -->
-	<div class="glass" style="padding: 1.25rem; min-height: 500px; display: flex; flex-direction: column; gap: 1rem;">
-		<h3 style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-			<span style="width: 10px; height: 10px; background: #64748b; border-radius: 50%;"></span>
-			To Do
-		</h3>
-		
-		<div 
-			role="button"
-			tabindex="0"
-			style="background: #f8fafc; border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; cursor: pointer; transition: transform 0.1s;" 
-			onmouseenter={(e) => e.currentTarget.style.transform='translateY(-2px)'} 
-			onmouseleave={(e) => e.currentTarget.style.transform='translateY(0)'}
-		>
-			<div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem;">Initialize Database Schema</div>
-			<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Setup PostgreSQL tables for tasks and users.</div>
-			<div style="display: flex; justify-content: space-between; align-items: center;">
-				<span style="background: #fee2e2; color: #991b1b; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700;">HIGH</span>
-				<div style="width: 24px; height: 24px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800;">JS</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- In Progress -->
-	<div class="glass" style="padding: 1.25rem; min-height: 500px; display: flex; flex-direction: column; gap: 1rem;">
-		<h3 style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-			<span style="width: 10px; height: 10px; background: #b91c1c; border-radius: 50%;"></span>
-			In Progress
-		</h3>
-		
-		<div 
-			role="button"
-			tabindex="0"
-			style="background: #f8fafc; border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; cursor: pointer;"
-		>
-			<div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem;">UI/UX Implementation</div>
-			<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Applying the new premium design system.</div>
-			<div style="display: flex; justify-content: space-between; align-items: center;">
-				<span style="background: #fef3c7; color: #92400e; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700;">MEDIUM</span>
-				<div style="width: 24px; height: 24px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800;">AK</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Done -->
-	<div class="glass" style="padding: 1.25rem; min-height: 500px; display: flex; flex-direction: column; gap: 1rem;">
-		<h3 style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-			<span style="width: 10px; height: 10px; background: #10b981; border-radius: 50%;"></span>
-			Done
-		</h3>
-		
-		<div style="background: #f8fafc; border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; opacity: 0.7;">
-			<div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.5rem;">Project Initialization</div>
-			<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">FastAPI and SvelteKit boilerplate setup.</div>
-			<div style="display: flex; justify-content: space-between; align-items: center;">
-				<span style="background: #dcfce7; color: #166534; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.7rem; font-weight: 700;">LOW</span>
-				<div style="width: 24px; height: 24px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 800;">AK</div>
-			</div>
-		</div>
-	</div>
-</div>
-
-<!-- Connection Status (Bottom corner for debug) -->
-<div style="position: fixed; bottom: 1rem; right: 1rem; font-size: 0.7rem; color: var(--text-secondary); opacity: 0.5;">
-	Backend: {status} {#if backendData}({backendData.backend} v{backendData.version}){/if}
+<!-- Connection Status -->
+<div style="position: fixed; bottom: 4rem; right: 2rem; font-size: 0.6rem; color: #334155; opacity: 0.5;">
+	{status} {#if backendData}({backendData.backend} v{backendData.version}){/if}
 </div>
