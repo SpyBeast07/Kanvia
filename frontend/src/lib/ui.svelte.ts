@@ -20,7 +20,13 @@ class UIStore {
     taskSearchQuery = $state('');
 
     alert(message: string, title = 'Notification') {
-        this.dialog = { show: true, title, message, type: 'alert' };
+        this.dialog = { 
+            show: true, 
+            title, 
+            message, 
+            type: 'alert',
+            onConfirm: () => this.close()
+        };
     }
 
     confirm(message: string, title = 'Confirm Action'): Promise<boolean> {

@@ -1,18 +1,21 @@
 <script lang="ts">
-    import { ui } from './ui.svelte.ts';
+	import { onMount } from 'svelte';
+	import { ui } from './ui.svelte.ts';
     import { fade, scale } from 'svelte/transition';
 
-    let inputValue = $state('');
+	let inputValue = $state('');
 
-    $effect(() => {
-        if (ui.dialog.show && ui.dialog.type === 'prompt') {
-            inputValue = ui.dialog.inputValue || '';
-        }
-    });
+	$effect(() => {
+		if (ui.dialog.show && ui.dialog.type === 'prompt') {
+			inputValue = ui.dialog.inputValue || '';
+		}
+	});
 
     function handleConfirm() {
         if (ui.dialog.onConfirm) {
             ui.dialog.onConfirm(inputValue);
+        } else {
+            ui.close();
         }
     }
 
@@ -23,6 +26,23 @@
             ui.close();
         }
     }
+
+	onMount(() => {
+		const handleKeydown = (e: KeyboardEvent) => {
+			if (!ui.dialog.show) return;
+
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				handleCancel();
+			} else if (e.key === 'Enter' && ui.dialog.type !== 'prompt') {
+				e.preventDefault();
+				handleConfirm();
+			}
+		};
+
+		window.addEventListener('keydown', handleKeydown);
+		return () => window.removeEventListener('keydown', handleKeydown);
+	});
 
     function focus(node: HTMLElement) {
         node.focus();
