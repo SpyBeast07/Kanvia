@@ -4,11 +4,11 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fade, scale, slide } from 'svelte/transition';
-	import { auth } from '../lib/auth.svelte.ts';
-	import { apiRequest } from '../lib/api/index.ts';
-	import { ui } from '../lib/ui.svelte.ts';
-	import { projectStore } from '../lib/projects.svelte.ts';
-	import Dialog from '../lib/components/Dialog.svelte';
+	import { auth } from '$lib/auth';
+	import { apiRequest } from '$lib/api/index';
+	import { ui } from '$lib/ui';
+	import { projectStore } from '$lib/projects';
+	import Dialog from '$lib/components/Dialog.svelte';
 
 	let { children } = $props();
 	let showNav = $state(false);

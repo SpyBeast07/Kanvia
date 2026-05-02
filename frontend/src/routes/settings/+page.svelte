@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { auth } from '../../lib/auth.svelte.ts';
+	import { auth } from '$lib/auth';
 	import { fade } from 'svelte/transition';
-	import { ui } from '../../lib/ui.svelte.ts';
+	import { ui } from '$lib/ui';
 
 	async function handleLogout() {
 		const confirmed = await ui.confirm('Are you sure you want to log out?', 'Logout Confirmation');
