@@ -27,6 +27,19 @@
 	let columnHover = $state<number | null>(null);
 	let columnDragOver = $state<number | null>(null);
 
+	function findColumnAtPosition(x: number, y: number): Column | null {
+		const cols = projectStore.columns;
+		if (cols.length === 0) return null;
+		const layout = document.querySelector('.fizzy-layout') as HTMLElement;
+		if (!layout) return null;
+		const rect = layout.getBoundingClientRect();
+		const relativeX = x - rect.left;
+		if (relativeX < 0 || relativeX > rect.width) return null;
+		const colWidth = rect.width / cols.length;
+		const colIdx = Math.floor(relativeX / colWidth);
+		return cols[colIdx] || null;
+	}
+
 	function saveColumnState() {
 		if (!projectStore.currentProject) return;
 		const projectId = projectStore.currentProject.id;
@@ -393,15 +406,10 @@
 						onclick={() => toggleColumn(column.id)}
 						onmouseenter={() => columnHover = column.id}
 						onmouseleave={() => columnHover = null}
-						ondragenter={() => { columnDragOver = column.id; }}
-						ondragleave={(e) => {
-							const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-							const { clientX, clientY } = e;
-							if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
-								columnDragOver = null;
-							}
-						}}
-						ondrop={(e) => { handleDrop(e, column.name); columnDragOver = null; }}
+						ondragenter={(e) => { e.preventDefault(); columnDragOver = column.id; }}
+						ondragleave={() => columnDragOver = null}
+						ondragover={(e) => { e.preventDefault(); columnDragOver = column.id; }}
+						ondrop={(e) => { e.preventDefault(); handleDrop(e, column.name); columnDragOver = null; }}
 					>
 						<div class="collapsed-count">{colTasks.length}</div>
 						<div class="vertical-title">{column.name}</div>
