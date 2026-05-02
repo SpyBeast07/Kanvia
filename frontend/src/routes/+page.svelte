@@ -636,7 +636,7 @@
 	{/if}
 
 	<!-- Assign Member Modal -->
-	{#if assigningTaskId}
+	{#if assigningTaskId !== null}
 		<div class="modal-overlay" transition:fade onclick={() => assigningTaskId = null} role="button" tabindex="-1" onkeydown={(e) => (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && (assigningTaskId = null)}>
 			<div class="people-modal glass assignment-modal" transition:scale onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="0">
 				<div class="modal-header">
