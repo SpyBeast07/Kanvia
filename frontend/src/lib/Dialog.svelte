@@ -28,17 +28,10 @@
         node.focus();
     }
 
-    function handleKeydown(e: KeyboardEvent) {
-        if (!ui.dialog.show) return;
-        if (e.key === 'Enter') {
-            handleConfirm();
-        } else if (e.key === 'Escape') {
-            handleCancel();
-        }
-    }
+
 </script>
 
-<svelte:window onkeydown={handleKeydown} />
+
 
 {#if ui.dialog.show}
     <!-- Backdrop -->
@@ -46,7 +39,13 @@
         class="backdrop" 
         transition:fade={{ duration: 200 }}
         onclick={handleCancel}
-        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleCancel()}
+        onkeydown={(e) => {
+            if (e.key === 'Escape') {
+                handleCancel();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                handleCancel();
+            }
+        }}
         role="button"
         tabindex="-1"
         aria-label="Close dialog"
@@ -56,7 +55,18 @@
             class="dialog-card glass" 
             transition:scale={{ duration: 200, start: 0.95 }}
             onclick={(e) => e.stopPropagation()}
-            onkeydown={(e) => e.stopPropagation()}
+            onkeydown={(e) => {
+                if (e.key === 'Enter') {
+                    e.stopPropagation();
+                    handleConfirm();
+                } else if (e.key === 'Escape') {
+                    e.stopPropagation();
+                    handleCancel();
+                } else {
+                    // Stop other keys from bubbling to backdrop
+                    e.stopPropagation();
+                }
+            }}
             role="dialog"
             aria-modal="true"
             tabindex="-1"

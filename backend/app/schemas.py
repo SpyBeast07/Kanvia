@@ -49,6 +49,7 @@ class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
     status: str = "MAYBE?"
+    is_pinned: bool = False
     assigned_to: Optional[int] = None
     due_date: Optional[datetime] = None
 
@@ -61,6 +62,7 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
     assigned_to: Optional[int] = None
     due_date: Optional[datetime] = None
+    is_pinned: Optional[bool] = None
 
 class TaskRead(TaskBase):
     id: int

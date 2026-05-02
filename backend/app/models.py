@@ -47,6 +47,7 @@ class Task(SQLModel, table=True):
     title: str
     description: Optional[str] = None
     status: str = Field(default="MAYBE?")
+    is_pinned: bool = Field(default=False)
     assigned_to: Optional[int] = Field(default=None, foreign_key="user.id")
     project_id: int = Field(foreign_key="project.id")
     due_date: Optional[datetime] = None

@@ -99,13 +99,17 @@ def create_project(
 def add_project_member(
     project_id: int,
     user_id: int,
-    current_user: User = Depends(check_admin),
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     # Check if project exists
     project = session.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user is the creator or an admin
+    if project.created_by != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to add members to this project")
     
     # Check if user exists
     user_to_add = session.get(User, user_id)
@@ -133,6 +137,20 @@ def list_projects(
     # Get projects where the user is a member
     statement = select(Project).join(ProjectMemberLink).where(ProjectMemberLink.user_id == current_user.id)
     return session.exec(statement).all()
+
+@app.get("/api/projects/{project_id}/members", response_model=List[UserRead])
+def list_project_members(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # Check if user is a member
+    membership = session.get(ProjectMemberLink, (current_user.id, project_id))
+    if not membership and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to view members of this project")
+    
+    project = session.get(Project, project_id)
+    return project.members
 
 @app.delete("/api/projects/{project_id}")
 def delete_project(

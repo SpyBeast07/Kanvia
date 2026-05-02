@@ -12,6 +12,7 @@
 		description: string;
 		status: string;
 		project_id: number;
+		is_pinned: boolean;
 		assigned_to: number | null;
 		created_by: number;
 		created_at: string;
@@ -26,6 +27,10 @@
 	let columnMenuOpen = $state<number | null>(null);
 	let columnHover = $state<number | null>(null);
 	let columnDragOver = $state<number | null>(null);
+	let showPinnedOnly = $state(false);
+	let showPeopleModal = $state(false);
+	let projectMembers = $state<any[]>([]);
+	let isSearching = $state(false);
 
 	function findColumnAtPosition(x: number, y: number): Column | null {
 		const cols = projectStore.columns;
@@ -183,20 +188,60 @@
 		} else if (ui.activeFilter === 'added' && auth.user) {
 			result = result.filter(t => t.created_by === auth.user?.id);
 		}
+		
+		if (showPinnedOnly) {
+			result = result.filter(t => t.is_pinned);
+		}
+
 		if (ui.taskSearchQuery) {
 			const q = ui.taskSearchQuery.toLowerCase();
-			result = result.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
+			result = result.filter(t => t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q));
 		}
 		return result;
 	});
 
 	let searchInput = $state<HTMLInputElement | null>(null);
 
+	async function togglePin(task: Task) {
+		try {
+			const updated = await apiRequest(`/tasks/${task.id}`, 'PATCH', {
+				is_pinned: !task.is_pinned
+			});
+			tasks = tasks.map(t => t.id === task.id ? updated : t);
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
+		}
+	}
+
+	async function loadMembers() {
+		if (!projectStore.currentProject) return;
+		try {
+			projectMembers = await apiRequest(`/projects/${projectStore.currentProject.id}/members`);
+		} catch (err) {
+			console.error('Failed to load members:', err);
+		}
+	}
+
 	$effect(() => {
 		const handleKeydown = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && gridViewColumn) {
+			if (e.key === 'Escape') {
+				if (gridViewColumn) {
+					e.preventDefault();
+					gridViewColumn = null;
+				} else if (showPeopleModal) {
+					showPeopleModal = false;
+				}
+			} else if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
 				e.preventDefault();
-				gridViewColumn = null;
+				isSearching = !isSearching;
+				if (isSearching) setTimeout(() => searchInput?.focus(), 50);
+			} else if (e.key === 'p' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+				e.preventDefault();
+				showPinnedOnly = !showPinnedOnly;
+			} else if (e.key === 'n' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+				e.preventDefault();
+				showPeopleModal = !showPeopleModal;
+				if (showPeopleModal) loadMembers();
 			} else if (e.key === 'f' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
 				e.preventDefault();
 				searchInput?.focus();
@@ -270,7 +315,7 @@
 		<div class="grid-view-overlay">
 			<div class="grid-view-header">
 				<button class="back-btn" onclick={() => gridViewColumn = null}>
-					Back to Playground <span class="kbd-shortcut">ESC</span>
+					Back to Playground <span class="kbd-box">ESC</span>
 				</button>
 				<h2 class="grid-view-title">Column: {gridViewColumn}</h2>
 				<div class="header-right-spacer"></div>
@@ -302,18 +347,6 @@
 		</div>
 	{:else}
 		<div class="board-header">
-			<div class="search-wrapper">
-				<input 
-					bind:this={searchInput}
-					type="text" 
-					class="task-search-input" 
-					bind:value={ui.taskSearchQuery} 
-					placeholder="Filter these cards... [F]" 
-				/>
-				<div class="filter-icon">
-					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-				</div>
-			</div>
 		</div>
 
 		<div class="fizzy-layout">
@@ -370,7 +403,7 @@
 						{#if isMaybe}
 							<div class="add-card-wrapper">
 								<button class="add-card-btn" onclick={() => handleAddTask(column.name)}>
-									Add a card <span class="kbd">C</span>
+									Add a card <span class="kbd-box">C</span>
 								</button>
 							</div>
 						{/if}
@@ -384,6 +417,7 @@
 								{#each colTasks as task, index}
 									<div 
 										class="task-card"
+										class:pinned={task.is_pinned}
 										draggable="true"
 										role="button"
 										tabindex="0"
@@ -391,8 +425,13 @@
 										style={draggedTaskId === task.id ? 'opacity: 0.5;' : ''}
 									>
 										<div class="task-card-header">
-											<span class="task-id">{colTasks.length - index}</span>
-											<span class="task-project">{projectStore.currentProject?.name}</span>
+											<div class="header-left">
+												<span class="task-id">{colTasks.length - index}</span>
+												<span class="task-project">{projectStore.currentProject?.name}</span>
+											</div>
+											<button class="pin-btn" class:active={task.is_pinned} onclick={() => togglePin(task)} title={task.is_pinned ? 'Unpin' : 'Pin'}>
+												<svg width="14" height="14" viewBox="0 0 24 24" fill={task.is_pinned ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v2a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 10z"></path><path d="M3 12v6a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 18v-6"></path><path d="M12 22V12"></path></svg>
+											</button>
 										</div>
 										<h4 class="task-title">{task.title}</h4>
 										<div class="task-meta">
@@ -435,6 +474,80 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Bottom Panel -->
+	<div class="bottom-panel">
+		<div class="bottom-panel-content">
+			<div class="panel-section left">
+				<button class="panel-item" class:active={showPinnedOnly} onclick={() => showPinnedOnly = !showPinnedOnly}>
+					PINNED <span class="kbd-box">P</span>
+				</button>
+			</div>
+			
+			<div class="panel-section center">
+				<div class="search-panel-item">
+					<span class="panel-label">SEARCH</span>
+					<div class="search-input-wrapper">
+						<input 
+							type="text" 
+							placeholder="Find tasks..." 
+							bind:value={ui.taskSearchQuery}
+							bind:this={searchInput}
+						/>
+						<span class="kbd-box">K</span>
+					</div>
+				</div>
+			</div>
+			
+			<div class="panel-section right">
+				<button class="panel-item" onclick={() => { showPeopleModal = true; loadMembers(); }}>
+					PEOPLE <span class="kbd-box">N</span>
+				</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- People Modal -->
+	{#if showPeopleModal}
+		<div 
+			class="modal-overlay" 
+			role="button"
+			tabindex="-1"
+			onclick={() => showPeopleModal = false} 
+			onkeydown={(e) => e.key === 'Escape' && (showPeopleModal = false)}
+			transition:fade
+		>
+			<div 
+				class="people-modal glass" 
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="modal-title"
+				tabindex="0"
+				onclick={(e) => e.stopPropagation()} 
+				onkeydown={(e) => e.stopPropagation()}
+				transition:scale
+			>
+				<div class="modal-header">
+					<h3 id="modal-title">Team Members</h3>
+					<button class="close-modal-btn" onclick={() => showPeopleModal = false}>×</button>
+				</div>
+				<div class="members-list">
+					{#each projectMembers as member}
+						<div class="member-row">
+							<div class="user-badge">{member.name.split(' ').map((n: any)=>n[0]).join('')}</div>
+							<div class="member-info">
+								<div class="member-name">{member.name}</div>
+								<div class="member-email">{member.email}</div>
+							</div>
+							<div class="member-role">{member.role}</div>
+						</div>
+					{:else}
+						<div class="empty-state">No members found.</div>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -443,6 +556,7 @@
 		display: flex;
 		flex-direction: column;
 		background: var(--bg-primary);
+		padding-bottom: 60px;
 	}
 
 	.board-header {
@@ -452,35 +566,7 @@
 		margin-bottom: 0.5rem;
 	}
 
-	.search-wrapper {
-		position: relative;
-		width: 400px;
-	}
 
-	.task-search-input {
-		width: 100%;
-		background: transparent;
-		border: 1px solid var(--border-color);
-		border-radius: 20px;
-		padding: 0.6rem 1rem;
-		color: var(--text-primary);
-		font-size: 0.85rem;
-		outline: none;
-		transition: border-color 0.2s;
-	}
-
-	.task-search-input:focus {
-		border-color: var(--text-secondary);
-	}
-
-	.filter-icon {
-		position: absolute;
-		right: 1rem;
-		top: 50%;
-		transform: translateY(-50%);
-		color: var(--text-muted);
-		pointer-events: none;
-	}
 
 	.fizzy-layout {
 		display: flex;
@@ -737,12 +823,7 @@
 
 	.add-card-btn:hover { opacity: 0.9; }
 
-	.kbd {
-		background: rgba(255,255,255,0.2);
-		padding: 0.1rem 0.3rem;
-		border-radius: 4px;
-		font-size: 0.7rem;
-	}
+
 
 	.tasks-list {
 		display: flex;
@@ -894,5 +975,246 @@
 	.grid-cards-container .task-card {
 		width: 380px;
 		flex: 0 0 auto;
+	}
+
+	/* Bottom Panel */
+	.bottom-panel {
+		position: fixed;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		z-index: 1000;
+		background: #0d1117;
+		border-top: 1px solid var(--border-color);
+		height: 48px;
+		display: flex;
+		align-items: center;
+	}
+
+	.bottom-panel-content {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		width: 100%;
+		max-width: 1400px;
+		margin: 0 auto;
+		padding: 0 2rem;
+		align-items: center;
+	}
+
+	.panel-section {
+		display: flex;
+		align-items: center;
+	}
+
+	.panel-section.left { justify-content: flex-start; }
+	.panel-section.center { justify-content: center; }
+	.panel-section.right { justify-content: flex-end; }
+
+	.panel-item {
+		background: none;
+		border: none;
+		color: var(--text-secondary);
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		transition: all 0.2s;
+		white-space: nowrap;
+	}
+
+	.panel-item:hover, .panel-item.active {
+		color: white;
+	}
+
+	.search-panel-item {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.panel-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		color: var(--text-secondary);
+		letter-spacing: 0.05em;
+	}
+
+	.search-input-wrapper {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+
+	.search-input-wrapper input {
+		background: rgba(255,255,255,0.03);
+		border: 1px solid var(--border-color);
+		border-radius: 4px;
+		padding: 0.25rem 2rem 0.25rem 0.75rem;
+		color: white;
+		font-size: 0.8rem;
+		width: 180px;
+		transition: all 0.2s;
+	}
+
+	.search-input-wrapper input:focus {
+		width: 240px;
+		background: rgba(255,255,255,0.08);
+		border-color: var(--accent-blue);
+		outline: none;
+	}
+
+	.kbd-box {
+		font-family: inherit;
+		font-size: 0.65rem;
+		font-weight: 700;
+		color: var(--text-muted);
+		background: rgba(255,255,255,0.05);
+		border: 1px solid var(--border-color);
+		border-radius: 3px;
+		padding: 1px 4px;
+		line-height: 1;
+		margin-left: 2px;
+	}
+
+	.search-input-wrapper .kbd-box {
+		position: absolute;
+		right: 0.5rem;
+	}
+
+	/* Modals */
+	.modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0,0,0,0.8);
+		backdrop-filter: blur(4px);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 2000;
+	}
+
+	.people-modal {
+		width: 500px;
+		border-radius: 1.5rem;
+		border: 1px solid var(--border-color);
+		overflow: hidden;
+		box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+	}
+
+	.modal-header {
+		padding: 1.5rem;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	.modal-header h3 {
+		margin: 0;
+		font-size: 1.25rem;
+		font-weight: 800;
+	}
+
+	.close-modal-btn {
+		background: none;
+		border: none;
+		color: var(--text-secondary);
+		font-size: 2rem;
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.members-list {
+		max-height: 400px;
+		overflow-y: auto;
+		padding: 1rem;
+	}
+
+	.member-row {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 1rem;
+		border-radius: 1rem;
+		transition: background 0.2s;
+	}
+
+	.member-row:hover {
+		background: rgba(255,255,255,0.05);
+	}
+
+	.user-badge {
+		width: 40px;
+		height: 40px;
+		background: var(--accent-blue);
+		color: white;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 700;
+		font-size: 0.9rem;
+	}
+
+	.member-info {
+		flex: 1;
+	}
+
+	.member-name {
+		font-weight: 700;
+		color: white;
+	}
+
+	.member-email {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.member-role {
+		font-size: 0.7rem;
+		font-weight: 800;
+		padding: 0.25rem 0.5rem;
+		background: rgba(255,255,255,0.1);
+		border-radius: 4px;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+	}
+
+	/* Pin Button */
+	.pin-btn {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		transition: all 0.2s;
+		opacity: 0;
+	}
+
+	.task-card:hover .pin-btn {
+		opacity: 1;
+	}
+
+	.pin-btn:hover, .pin-btn.active {
+		color: var(--accent-blue);
+		background: rgba(59, 130, 246, 0.1);
+	}
+
+	.task-card.pinned {
+		border-color: var(--accent-blue);
+		box-shadow: 0 0 15px rgba(59, 130, 246, 0.1);
+	}
+
+	.header-left {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
 	}
 </style>
