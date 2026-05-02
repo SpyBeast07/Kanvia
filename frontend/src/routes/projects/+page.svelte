@@ -1,238 +1,177 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { projectStore } from '$lib/projects';
-	import { auth } from '$lib/auth';
-	import { ui } from '$lib/ui';
-	import { apiRequest } from '$lib/api/index';
+	import { projectStore } from '../../lib/projects.svelte.ts';
+	import { auth } from '../../lib/auth.svelte.ts';
+	import { ui } from '../../lib/ui.svelte.ts';
+	import { apiRequest } from '../../lib/api.svelte.ts';
 	import { goto } from '$app/navigation';
 
 	let isLoadingUsers = $state(false);
-	let allUsers = $state<any[]>([]);
 
 	onMount(async () => {
-		await projectStore.loadProjects();
-		if (auth.user?.role === 'ADMIN') {
-			loadAllUsers();
+		if (auth.token && auth.users.length === 0) {
+			isLoadingUsers = true;
+			try {
+				await auth.loadUsers();
+			} finally {
+				isLoadingUsers = false;
+			}
 		}
 	});
 
-	async function loadAllUsers() {
-		isLoadingUsers = true;
+	async function handleAddProject() {
+		const name = await ui.prompt('Enter project name:');
+		if (!name) return;
 		try {
-			allUsers = await apiRequest('/users');
-		} catch (err) {
-			console.error('Failed to load users');
-		} finally {
-			isLoadingUsers = false;
+			const newProject = await projectStore.createProject(name);
+			projectStore.setCurrentProject(newProject);
+			goto('/');
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
 		}
-	}
-
-	async function handleCreateProject() {
-		const name = await ui.prompt('Enter project name:', '', 'New Project');
-		if (name) {
-			try {
-				await projectStore.createProject(name);
-				ui.alert('Project created successfully!');
-			} catch (err: any) {
-				ui.alert(err.message, 'Error');
-			}
-		}
-	}
-
-	async function handleAddMember(projectId: number) {
-		const email = await ui.prompt('Enter member email to add:', '', 'Add Member');
-		if (email) {
-			const userToAdd = allUsers.find(u => u.email === email);
-			if (!userToAdd) {
-				ui.alert('User not found with this email.', 'Error');
-				return;
-			}
-			try {
-				await apiRequest(`/projects/${projectId}/members/${userToAdd.id}`, 'POST');
-				ui.alert(`User ${userToAdd.name} added to project!`);
-			} catch (err: any) {
-				ui.alert(err.message, 'Error');
-			}
-		}
-	}
-
-	function selectProject(project: any) {
-		projectStore.setCurrentProject(project);
-		goto('/');
 	}
 </script>
 
-<div class="projects-container">
-	<div class="header-row">
+<div class="projects-page">
+	<div class="header-section">
 		<div>
 			<h1 class="title">Projects</h1>
-			<p class="subtitle">Manage your team's workspaces</p>
+			<p class="subtitle">Overview of all active workspace boards</p>
 		</div>
-		{#if auth.user?.role === 'ADMIN'}
-			<button class="btn-primary" onclick={handleCreateProject}>
-				+ NEW PROJECT
-			</button>
-		{/if}
+		<button class="create-btn" onclick={handleAddProject}>
+			<span class="icon">+</span> Create Project
+		</button>
 	</div>
 
-	{#if projectStore.isLoading}
-		<div class="loading">Loading projects...</div>
-	{:else if projectStore.projects.length === 0}
-		<div class="empty-state glass">
-			<p>No projects found. {auth.user?.role === 'ADMIN' ? 'Create one to get started!' : 'Ask an admin to add you to a project.'}</p>
-		</div>
-	{:else}
-		<div class="projects-grid">
-			{#each projectStore.projects as project}
-				<div class="project-card glass">
-					<div class="card-info" onclick={() => selectProject(project)} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && selectProject(project)}>
-						<div class="project-icon">📁</div>
-						<div>
-							<h2 class="project-name">{project.name}</h2>
-							<p class="project-meta">Created {new Date(project.created_at).toLocaleDateString()}</p>
-						</div>
-					</div>
-					
-					{#if auth.user?.role === 'ADMIN'}
-						<div class="card-actions">
-							<button class="btn-secondary" onclick={() => handleAddMember(project.id)}>
-								+ ADD MEMBER
-							</button>
-						</div>
-					{/if}
-
-					{#if projectStore.currentProject?.id === project.id}
-						<div class="active-badge">ACTIVE</div>
-					{/if}
+	<div class="projects-grid">
+		{#each projectStore.projects as project}
+			<button class="project-card glass" onclick={() => { projectStore.setCurrentProject(project); goto('/'); }}>
+				<div class="project-icon">📄</div>
+				<div class="project-info">
+					<h3 class="project-name">{project.name}</h3>
+					<p class="project-meta">Created {new Date(project.created_at).toLocaleDateString()}</p>
 				</div>
-			{/each}
-		</div>
-	{/if}
+				<div class="project-chevron">→</div>
+			</button>
+		{/each}
+	</div>
 </div>
 
 <style>
-	.projects-container {
-		max-width: 1000px;
+	.projects-page {
+		padding: 4rem;
+		max-width: 1200px;
 		margin: 0 auto;
-		padding: 2rem 4rem;
+		width: 100%;
 	}
 
-	.header-row {
+	.header-section {
 		display: flex;
 		justify-content: space-between;
-		align-items: center;
+		align-items: flex-end;
 		margin-bottom: 3rem;
 	}
 
 	.title {
-		font-size: 2.5rem;
+		font-size: 3.5rem;
 		font-weight: 900;
-		color: #ffffff;
+		color: var(--text-primary);
+		margin: 0 0 0.5rem 0;
 		letter-spacing: -0.04em;
-		margin-bottom: 0.5rem;
 	}
 
 	.subtitle {
-		color: #94a3b8;
 		font-size: 1.1rem;
-		font-weight: 600;
+		color: var(--text-secondary);
+		margin: 0;
+	}
+
+	.create-btn {
+		background: var(--accent-blue);
+		color: white;
+		border: none;
+		padding: 0.85rem 1.5rem;
+		border-radius: 0.75rem;
+		font-size: 0.85rem;
+		font-weight: 900;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		transition: all 0.2s;
+	}
+
+	.create-btn:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
 	}
 
 	.projects-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
 		gap: 1.5rem;
 	}
 
 	.project-card {
-		position: relative;
-		background: #161e27;
-		border: 1.5px solid #1e293b;
+		background: var(--bg-secondary);
+		border: 1.5px solid var(--border-color);
 		border-radius: 1.25rem;
-		padding: 2rem;
-		transition: transform 0.2s, border-color 0.2s;
+		padding: 1.5rem;
 		display: flex;
-		flex-direction: column;
+		align-items: center;
 		gap: 1.5rem;
+		cursor: pointer;
+		text-align: left;
+		transition: all 0.2s;
+		width: 100%;
 	}
 
 	.project-card:hover {
-		transform: translateY(-4px);
-		border-color: #3b82f6;
-	}
-
-	.card-info {
-		display: flex;
-		gap: 1.25rem;
-		align-items: center;
-		cursor: pointer;
+		border-color: var(--accent-blue);
+		transform: scale(1.02);
+		background: rgba(30, 41, 59, 0.6);
 	}
 
 	.project-icon {
-		width: 50px;
-		height: 50px;
-		background: #0b1219;
-		border-radius: 12px;
+		width: 48px;
+		height: 48px;
+		background: var(--bg-primary);
+		border-radius: 1rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		font-size: 1.5rem;
+		border: 1px solid var(--border-color);
+	}
+
+	.project-info {
+		flex: 1;
 	}
 
 	.project-name {
-		font-size: 1.25rem;
-		font-weight: 800;
-		color: #ffffff;
-		margin-bottom: 0.25rem;
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		margin: 0 0 0.25rem 0;
 	}
 
 	.project-meta {
-		font-size: 0.85rem;
-		color: #64748b;
-		font-weight: 600;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		margin: 0;
 	}
 
-	.card-actions {
-		border-top: 1px solid #1e293b;
-		padding-top: 1rem;
+	.project-chevron {
+		color: var(--text-muted);
+		font-size: 1.25rem;
+		transition: transform 0.2s;
 	}
 
-	.btn-secondary {
-		background: transparent;
-		border: 1.5px solid #1e293b;
-		color: #94a3b8;
-		padding: 0.5rem 1rem;
-		border-radius: 0.75rem;
-		font-size: 0.75rem;
-		font-weight: 900;
-		cursor: pointer;
-		transition: all 0.2s;
-	}
-
-	.btn-secondary:hover {
-		border-color: #3b82f6;
-		color: #ffffff;
-		background: rgba(59, 130, 246, 0.1);
-	}
-
-	.active-badge {
-		position: absolute;
-		top: 1rem;
-		right: 1rem;
-		background: #3b82f6;
-		color: white;
-		font-size: 0.65rem;
-		font-weight: 900;
-		padding: 0.25rem 0.6rem;
-		border-radius: 4px;
-		letter-spacing: 0.05em;
-	}
-
-	.loading, .empty-state {
-		text-align: center;
-		padding: 4rem;
-		color: #64748b;
-		font-weight: 700;
+	.project-card:hover .project-chevron {
+		color: var(--accent-blue);
+		transform: translateX(4px);
 	}
 
 	.glass {

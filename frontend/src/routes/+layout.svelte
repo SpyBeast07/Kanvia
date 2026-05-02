@@ -4,17 +4,16 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fade, scale, slide } from 'svelte/transition';
-	import { auth } from '$lib/auth';
-	import { apiRequest } from '$lib/api/index';
-	import { ui } from '$lib/ui';
-	import { projectStore } from '$lib/projects';
-	import Dialog from '$lib/components/Dialog.svelte';
+	import { auth } from '../lib/auth.svelte.ts';
+	import { apiRequest } from '../lib/api.svelte.ts';
+	import { ui } from '../lib/ui.svelte.ts';
+	import { projectStore } from '../lib/projects.svelte.ts';
+	import Dialog from '../lib/Dialog.svelte';
 
 	let { children } = $props();
 	let showNav = $state(false);
 	let searchQuery = $state('');
 
-	// Action to focus input without using autofocus attribute
 	function focusOnMount(node: HTMLInputElement) {
 		node.focus();
 	}
@@ -27,7 +26,6 @@
 		}
 	}
 
-	// Filtered Results
 	const filteredProjects = $derived(
 		projectStore.projects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
@@ -55,7 +53,6 @@
 		settingsOptions.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
-	// Visibility Logic for Dividers
 	const showShortcuts = $derived(searchQuery && filteredShortcuts.length > 0);
 	const showProjects = $derived(!searchQuery || filteredProjects.length > 0);
 	const showPeople = $derived(!searchQuery || filteredUsers.length > 0);
@@ -182,7 +179,6 @@
 <div class="app-container">
 	{#if !isAuthPage}
 	<header class="main-header">
-		<!-- Logo Section -->
 		<button class="logo-btn" onclick={toggleNav}>
 			<span class="logo-icon">🎨</span>
 			<span class="logo-text">Kanvia</span>
@@ -190,7 +186,6 @@
 			<span class="chevron">⌄</span>
 		</button>
 
-		<!-- Horizontal Line Section -->
 		<div class="header-nav">
 			<a href="/projects" class="nav-circle-btn" aria-label="View Projects">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
@@ -211,12 +206,10 @@
 	</header>
 	{/if}
 
-	<!-- Main Content -->
 	<main class="main-content">
 		{@render children()}
 	</main>
 
-	<!-- Global Nav Overlay (Fizzy Style) -->
 	{#if showNav}
 		<div 
 			transition:fade={{ duration: 150 }}
@@ -260,7 +253,6 @@
 				{/if}
 
 				<div class="panel-sections">
-					<!-- Shortcuts Search Results -->
 					{#if showShortcuts}
 					<div class="section" transition:slide>
 						<button class="section-header" onclick={() => toggleSection('shortcuts')}>
@@ -281,7 +273,6 @@
 					{/if}
 					{/if}
 
-					<!-- Projects Section -->
 					{#if showProjects}
 					<div class="section">
 						<button class="section-header" onclick={() => toggleSection('projects')}>
@@ -307,7 +298,6 @@
 					{/if}
 					{/if}
 
-					<!-- People Section -->
 					{#if showPeople}
 					<div class="section">
 						<button class="section-header" onclick={() => toggleSection('people')}>
@@ -336,7 +326,6 @@
 					{/if}
 					{/if}
 
-					<!-- Settings Section -->
 					{#if showSettings}
 					<div class="section">
 						<button class="section-header" onclick={() => toggleSection('settings')}>
@@ -391,7 +380,6 @@
 		background: var(--bg-primary);
 	}
 
-	/* Header */
 	.main-header {
 		height: 120px;
 		display: flex;
@@ -458,7 +446,6 @@
 		letter-spacing: -0.04em;
 	}
 
-	/* Overlay Panel */
 	.overlay {
 		position: fixed;
 		inset: 0;
@@ -467,7 +454,7 @@
 		z-index: 2000;
 		display: flex;
 		justify-content: center;
-		padding-top: 5vh; /* Fixed to top with offset */
+		padding-top: 5vh;
 	}
 
 	.nav-panel {
@@ -505,11 +492,11 @@
 		background: #1f2937;
 		border: 1px solid transparent;
 		border-radius: 0.75rem;
-		padding: 1rem; /* Closer text */
+		padding: 1rem;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 0.75rem; /* Closer icons */
+		gap: 0.75rem;
 		cursor: pointer;
 		transition: all 0.2s;
 	}
@@ -537,7 +524,7 @@
 	}
 
 	.action-label {
-		font-size: 0.85rem; /* Slightly smaller labels */
+		font-size: 0.85rem;
 		font-weight: 700;
 		color: var(--text-primary);
 	}
@@ -545,7 +532,7 @@
 	.panel-sections {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem; /* Closer sections */
+		gap: 0.5rem;
 		padding: 0 0.5rem;
 		overflow-y: auto;
 		scrollbar-width: thin;
@@ -555,7 +542,7 @@
 		width: 100%;
 		background: none;
 		border: none;
-		font-size: 0.7rem; /* Smaller headers */
+		font-size: 0.7rem;
 		font-weight: 900;
 		color: var(--text-muted);
 		letter-spacing: 0.1em;
@@ -586,7 +573,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		padding: 0.5rem 0.75rem; /* Tighter items */
+		padding: 0.5rem 0.75rem;
 		border-radius: 0.5rem;
 		background: none;
 		border: none;

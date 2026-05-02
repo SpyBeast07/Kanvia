@@ -87,7 +87,7 @@ def create_project(
     session.add(member_link)
     
     # Seed default columns
-    default_columns = ["NOT NOW", "MAYBE?", "DONE"]
+    default_columns = ["Not Now", "Maybe?", "Done"]
     for i, col_name in enumerate(default_columns):
         col = ProjectColumn(name=col_name, order=i, project_id=new_project.id)
         session.add(col)
@@ -164,18 +164,20 @@ def create_column(
     
     # If the requested order is where DONE is, or if we want it "before done"
     # we should shift existing columns.
-    # To keep it simple, let's find the current highest order (DONE)
-    done_col = session.exec(select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.name == "DONE")).first()
+    # To keep it simple, let's find the current highest order (Done)
+    done_col = session.exec(select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.name == "Done")).first()
     
     new_order = column_data.order
-    if done_col and new_order >= done_col.order:
-        new_order = done_col.order
-        # Shift DONE and any others after new_order
-        statement = select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.order >= new_order)
-        to_shift = session.exec(statement).all()
-        for col in to_shift:
-            col.order += 1
-            session.add(col)
+    # If adding without specific order, or if adding at/after Done, put it at Done's position and shift Done
+    if done_col:
+        if new_order >= done_col.order or new_order == 0: # Default to before Done
+            new_order = done_col.order
+            # Shift Done and any others after new_order
+            statement = select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.order >= new_order)
+            to_shift = session.exec(statement).all()
+            for col in to_shift:
+                col.order += 1
+                session.add(col)
             
     new_column = ProjectColumn(name=column_data.name, order=new_order, project_id=project_id)
     session.add(new_column)
