@@ -74,5 +74,15 @@ A Kanban-style team task manager built with SvelteKit and FastAPI.
 ## API Documentation
 
 Once the backend is running, you can access the interactive API docs at:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
+- Swagger UI: `http://localhost:8081/docs`
+- ReDoc: `http://localhost:8081/redoc`
+
+## Docker Deployment
+
+The project is fully dockerized for production. To run the entire stack (Frontend, Backend, Database, and Caddy Reverse Proxy) on port **8081**:
+
+```bash
+docker-compose up --build
+```
+
+For more details, see [README_DOCKER.md](README_DOCKER.md).
