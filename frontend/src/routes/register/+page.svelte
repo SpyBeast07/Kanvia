@@ -20,7 +20,7 @@
 		isLoading = true;
 
 		try {
-			await apiRequest('/auth/register', 'POST', { name, email, password });
+			await apiRequest('/auth/signup', 'POST', { name, email, password });
 			const data = await apiRequest('/auth/login', 'POST', { email, password });
 			auth.setToken(data.access_token);
 			auth.setUser(data.user);
