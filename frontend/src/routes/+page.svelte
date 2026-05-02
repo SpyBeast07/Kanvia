@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiRequest } from '$lib/api';
+	import { apiRequest } from '$lib/api/index';
+	import { ui } from '$lib/ui.svelte';
 
 	interface Task {
 		id: number;
@@ -56,10 +57,10 @@
 
 	async function addTask() {
 		if (!currentProjectId) {
-			alert('No active project found. Please create a project first.');
+			ui.alert('No active project found. Please create a project first.');
 			return;
 		}
-		const title = prompt('Enter task title:');
+		const title = await ui.prompt('Enter task title:');
 		if (!title) return;
 
 		try {
@@ -70,7 +71,7 @@
 			});
 			tasks = [...tasks, newTask];
 		} catch (err: any) {
-			alert(err.message);
+			ui.alert(err.message, 'Error Adding Task');
 		}
 	}
 
@@ -98,7 +99,7 @@
 		} catch (err) {
 			// Rollback on failure
 			tasks[taskIndex].status = originalStatus;
-			alert('Failed to update task status');
+			ui.alert('Failed to update task status', 'Sync Error');
 		}
 	}
 
