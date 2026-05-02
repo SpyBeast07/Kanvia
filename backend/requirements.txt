@@ -1,7 +1,9 @@
 fastapi
 uvicorn
-python-dotenv
-pydantic
-sqlalchemy
+sqlmodel
 psycopg2-binary
-cors
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+pydantic[email]
