@@ -21,7 +21,8 @@ class User(SQLModel, table=True):
 
     projects_created: List["Project"] = Relationship(back_populates="creator")
     projects: List["Project"] = Relationship(back_populates="members", link_model=ProjectMemberLink)
-    tasks: List["Task"] = Relationship(back_populates="assignee")
+    assigned_tasks: List["Task"] = Relationship(back_populates="assignee", sa_relationship_kwargs={"foreign_keys": "Task.assigned_to"})
+    created_tasks: List["Task"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "Task.created_by"})
 
 class Project(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -49,10 +50,12 @@ class Task(SQLModel, table=True):
     status: str = Field(default="MAYBE?")
     is_pinned: bool = Field(default=False)
     assigned_to: Optional[int] = Field(default=None, foreign_key="user.id")
+    created_by: int = Field(foreign_key="user.id")
     project_id: int = Field(foreign_key="project.id")
     due_date: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     project: Project = Relationship(back_populates="tasks")
-    assignee: Optional[User] = Relationship(back_populates="tasks")
+    assignee: Optional[User] = Relationship(sa_relationship_kwargs={"foreign_keys": "Task.assigned_to"})
+    creator: User = Relationship(sa_relationship_kwargs={"foreign_keys": "Task.created_by"})

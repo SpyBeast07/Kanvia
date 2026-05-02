@@ -29,6 +29,7 @@
 	let columnDragOver = $state<number | null>(null);
 	let showPinnedOnly = $state(false);
 	let showPeopleModal = $state(false);
+	let assigningTaskId = $state<number | null>(null);
 	let projectMembers = $state<any[]>([]);
 	let isSearching = $state(false);
 
@@ -208,6 +209,18 @@
 				is_pinned: !task.is_pinned
 			});
 			tasks = tasks.map(t => t.id === task.id ? updated : t);
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
+		}
+	}
+
+	async function handleAssign(taskId: number, userId: number | null) {
+		try {
+			const updated = await apiRequest(`/tasks/${taskId}`, 'PATCH', {
+				assigned_to: userId
+			});
+			tasks = tasks.map(t => t.id === taskId ? updated : t);
+			assigningTaskId = null;
 		} catch (err: any) {
 			ui.alert(err.message, 'Error');
 		}
@@ -435,16 +448,41 @@
 										</div>
 										<h4 class="task-title">{task.title}</h4>
 										<div class="task-meta">
-											<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
-											<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
-											<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
-											<div class="meta-divider"></div>
-											<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
-											{#if task.assigned_to}
-												<div class="meta-divider"></div>
-												<div class="user-badge-small assigned">{auth.users.find(u => u.id === task.assigned_to)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
-												<span class="meta-item assignee">{auth.users.find(u => u.id === task.assigned_to)?.name.toUpperCase()}</span>
-											{/if}
+											<div class="meta-left">
+												<div class="user-badge-small creator" title="Created by {auth.users.find(u => u.id === task.created_by)?.name}">
+													{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}
+												</div>
+												<div class="meta-details">
+													<span class="meta-label">CREATED BY</span>
+													<span class="meta-value">{auth.users.find(u => u.id === task.created_by)?.name.split(' ')[0]}</span>
+												</div>
+											</div>
+
+											<div class="meta-divider-v"></div>
+
+											<div class="meta-right">
+												<button 
+													class="assign-btn-card" 
+													onclick={() => { assigningTaskId = task.id; loadMembers(); }}
+													title={task.assigned_to ? 'Change Assignee' : 'Assign Task'}
+												>
+													{#if task.assigned_to}
+														<div class="user-badge-small assigned">
+															{auth.users.find(u => u.id === task.assigned_to)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}
+														</div>
+														<div class="meta-details">
+															<span class="meta-label">ASSIGNED TO</span>
+															<span class="meta-value">{auth.users.find(u => u.id === task.assigned_to)?.name.split(' ')[0]}</span>
+														</div>
+													{:else}
+														<div class="user-badge-small unassigned">+</div>
+														<div class="meta-details">
+															<span class="meta-label">ASSIGNED TO</span>
+															<span class="meta-value">UNASSIGNED</span>
+														</div>
+													{/if}
+												</button>
+											</div>
 										</div>
 									</div>
 								{/each}
@@ -514,7 +552,7 @@
 			role="button"
 			tabindex="-1"
 			onclick={() => showPeopleModal = false} 
-			onkeydown={(e) => e.key === 'Escape' && (showPeopleModal = false)}
+			onkeydown={(e) => (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && (showPeopleModal = false)}
 			transition:fade
 		>
 			<div 
@@ -543,6 +581,39 @@
 						</div>
 					{:else}
 						<div class="empty-state">No members found.</div>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Assign Member Modal -->
+	{#if assigningTaskId}
+		<div class="modal-overlay" transition:fade onclick={() => assigningTaskId = null} role="button" tabindex="-1" onkeydown={(e) => (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && (assigningTaskId = null)}>
+			<div class="people-modal glass assignment-modal" transition:scale onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="0">
+				<div class="modal-header">
+					<h3>Assign Task</h3>
+					<button class="close-modal-btn" onclick={() => assigningTaskId = null}>×</button>
+				</div>
+				<div class="members-list">
+					<button class="member-row assign-option" onclick={() => handleAssign(assigningTaskId!, null)}>
+						<div class="user-badge-small unassigned">×</div>
+						<div class="member-info">
+							<div class="member-name">Unassign</div>
+							<div class="member-email">Remove current assignee</div>
+						</div>
+					</button>
+					{#each projectMembers as member}
+						<button class="member-row assign-option" onclick={() => handleAssign(assigningTaskId!, member.id)}>
+							<div class="user-badge">{member.name.split(' ').map((n: any)=>n[0]).join('')}</div>
+							<div class="member-info">
+								<div class="member-name">{member.name}</div>
+								<div class="member-email">{member.email}</div>
+							</div>
+							<div class="member-role">{member.role}</div>
+						</button>
+					{:else}
+						<div class="empty-state">No project members to assign.</div>
 					{/each}
 				</div>
 			</div>
@@ -863,20 +934,105 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		font-size: 0.65rem;
+		margin-top: 1rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid rgba(255,255,255,0.05);
+	}
+
+	.meta-left, .meta-right {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.meta-details {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.meta-label {
+		font-size: 0.55rem;
 		font-weight: 700;
 		color: var(--text-muted);
+		letter-spacing: 0.05em;
+	}
+
+	.meta-value {
+		font-size: 0.7rem;
+		font-weight: 800;
+		color: var(--text-secondary);
+		text-transform: uppercase;
+	}
+
+	.meta-divider-v {
+		width: 1px;
+		height: 24px;
+		background: rgba(255,255,255,0.08);
+	}
+
+	.assign-btn-card {
+		background: none;
+		border: none;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		text-align: left;
+		transition: opacity 0.2s;
+		width: 100%;
+	}
+
+	.assign-btn-card:hover {
+		opacity: 0.7;
 	}
 
 	.user-badge-small {
-		width: 20px;
-		height: 20px;
-		background: #ca8a04;
+		width: 24px;
+		height: 24px;
+		background: rgba(255,255,255,0.1);
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		font-size: 0.65rem;
+		font-weight: 900;
 		color: white;
+	}
+
+	.user-badge-small.creator {
+		background: var(--accent-blue);
+	}
+
+	.user-badge-small.assigned {
+		background: #10b981;
+	}
+
+	.user-badge-small.unassigned {
+		background: rgba(255,255,255,0.05);
+		border: 1px dashed rgba(255,255,255,0.2);
+		color: var(--text-muted);
+	}
+
+	.assign-option {
+		width: 100%;
+		background: none;
+		border: none;
+		text-align: left;
+		cursor: pointer;
+		transition: background 0.2s;
+		border-radius: 8px;
+		padding: 0.75rem;
+	}
+
+	.assign-option:hover {
+		background: rgba(255,255,255,0.05);
+	}
+
+	.assignment-modal {
+		max-width: 400px;
 	}
 
 	.user-badge-small.assigned {

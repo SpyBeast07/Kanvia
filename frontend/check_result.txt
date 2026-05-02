@@ -1,0 +1,38 @@
+Loading svelte-check in workspace: /Users/kushagra/Documents/code/Kanvia/frontend
+Getting Svelte diagnostics...
+
+/Users/kushagra/Documents/code/Kanvia/frontend/src/routes/+page.svelte:593:4
+Warn: Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+https://svelte.dev/e/a11y_click_events_have_key_events (svelte)
+		<div class="modal-overlay" transition:fade onclick={() => assigningTaskId = null} role="button" tabindex="-1" onkeydown={(e) => (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && (assigningTaskId = null)}>
+			<div class="people-modal glass assignment-modal" transition:scale onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="0">
+				<div class="modal-header">
+					<h3>Assign Task</h3>
+					<button class="close-modal-btn" onclick={() => assigningTaskId = null}>×</button>
+				</div>
+				<div class="members-list">
+					<button class="member-row assign-option" onclick={() => handleAssign(assigningTaskId!, null)}>
+						<div class="user-badge-small unassigned">×</div>
+						<div class="member-info">
+							<div class="member-name">Unassign</div>
+							<div class="member-email">Remove current assignee</div>
+						</div>
+					</button>
+					{#each projectMembers as member}
+						<button class="member-row assign-option" onclick={() => handleAssign(assigningTaskId!, member.id)}>
+							<div class="user-badge">{member.name.split(' ').map((n: any)=>n[0]).join('')}</div>
+							<div class="member-info">
+								<div class="member-name">{member.name}</div>
+								<div class="member-email">{member.email}</div>
+							</div>
+							<div class="member-role">{member.role}</div>
+						</button>
+					{:else}
+						<div class="empty-state">No project members to assign.</div>
+					{/each}
+				</div>
+			</div>
+		</div>
+
+====================================
+svelte-check found 0 errors and 1 warning in 1 file

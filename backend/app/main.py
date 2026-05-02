@@ -283,7 +283,7 @@ def create_task(
     if not member:
         raise HTTPException(status_code=403, detail="Not a member of this project")
     
-    new_task = Task(**task_data.dict())
+    new_task = Task(**task_data.dict(), created_by=current_user.id)
     session.add(new_task)
     session.commit()
     session.refresh(new_task)
