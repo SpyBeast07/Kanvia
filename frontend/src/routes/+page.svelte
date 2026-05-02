@@ -1,32 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiRequest } from '$lib/api/index';
-	import { ui } from '$lib/ui.svelte';
-	import { projectStore } from '$lib/projects.svelte';
-	import { auth } from '$lib/auth.svelte';
+	import { apiRequest } from '../lib/api/index.ts';
+	import { ui } from '../lib/ui.svelte.ts';
+	import { projectStore } from '../lib/projects.svelte.ts';
+	import { auth } from '../lib/auth.svelte.ts';
+	import { fade, scale } from 'svelte/transition';
 
 	interface Task {
 		id: number;
 		title: string;
-		status: 'TODO' | 'IN_PROGRESS' | 'DONE';
+		status: string;
 		project_id: number;
 		created_at: string;
 		due_date?: string;
-		assigned_to?: number;
 	}
 
-	interface Project {
-		id: number;
-		name: string;
-	}
-
-	interface BackendInfo {
-		backend: string;
-		version: string;
-	}
-
-	let status = $state('Loading...');
-	let backendData = $state<BackendInfo | null>(null);
 	let tasks = $state<Task[]>([]);
 	let isLoading = $state(true);
 
@@ -41,27 +29,14 @@
 		isLoading = true;
 		try {
 			tasks = await apiRequest(`/projects/${projectId}/tasks`);
-			status = 'Connected';
 		} catch (err) {
 			console.error('Failed to load tasks:', err);
-			status = 'Disconnected';
 		} finally {
 			isLoading = false;
 		}
 	}
 
-	async function loadHealth() {
-		try {
-			const health = await apiRequest('/status');
-			backendData = health;
-		} catch (err) {
-			console.error('Health check failed');
-		}
-	}
-
-
 	onMount(() => {
-		loadHealth();
 		if (!projectStore.projects.length) {
 			projectStore.loadProjects();
 		}
@@ -79,7 +54,7 @@
 			const newTask = await apiRequest('/tasks', 'POST', {
 				title,
 				project_id: projectStore.currentProject.id,
-				status: 'IN_PROGRESS'
+				status: 'MAYBE?'
 			});
 			tasks = [...tasks, newTask];
 		} catch (err: any) {
@@ -87,165 +62,431 @@
 		}
 	}
 
-	// --- Drag and Drop Logic ---
-	let draggingTaskId = $state<number | null>(null);
-
-	function onDragStart(taskId: number) {
-		draggingTaskId = taskId;
+	async function addColumn() {
+		if (!projectStore.currentProject) return;
+		if (auth.user?.role !== 'ADMIN') {
+			ui.alert('Only admins can add columns.', 'Access Denied');
+			return;
+		}
+		
+		const name = await ui.prompt('Enter new column name:');
+		if (!name) return;
+		
+		try {
+			await projectStore.createColumn(name.toUpperCase());
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
+		}
 	}
 
-	async function onDrop(newStatus: 'TODO' | 'IN_PROGRESS' | 'DONE') {
-		if (draggingTaskId === null) return;
-		
-		const taskIndex = tasks.findIndex(t => t.id === draggingTaskId);
+	async function moveTask(taskId: number, newStatus: string) {
+		const taskIndex = tasks.findIndex(t => t.id === taskId);
 		if (taskIndex === -1) return;
 
-		// Optimistic Update
 		const originalStatus = tasks[taskIndex].status;
 		tasks[taskIndex].status = newStatus;
-		const id = draggingTaskId;
-		draggingTaskId = null;
 
 		try {
-			await apiRequest(`/tasks/${id}`, 'PATCH', { status: newStatus });
+			await apiRequest(`/tasks/${taskId}`, 'PATCH', { status: newStatus });
 		} catch (err) {
-			// Rollback on failure
 			tasks[taskIndex].status = originalStatus;
 			ui.alert('Failed to update task status', 'Sync Error');
 		}
 	}
 
-	function getTasksByStatus(statusName: 'TODO' | 'IN_PROGRESS' | 'DONE') {
+	function timeAgo(date: string) {
+		const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+		let interval = seconds / 31536000;
+		if (interval > 1) return Math.floor(interval) + " YEARS AGO";
+		interval = seconds / 2592000;
+		if (interval > 1) return Math.floor(interval) + " MONTHS AGO";
+		interval = seconds / 86400;
+		if (interval > 1) return Math.floor(interval) + " DAYS AGO";
+		interval = seconds / 3600;
+		if (interval > 1) return Math.floor(interval) + " HOURS AGO";
+		interval = seconds / 60;
+		if (interval > 1) return Math.floor(interval) + " MINUTES AGO";
+		return Math.floor(seconds) + " AGO";
+	}
+
+	function getTasksByStatus(statusName: string) {
 		return tasks.filter(t => t.status === statusName);
 	}
+
+	// Columns logic with defaults - always ensure NOT NOW, MAYBE?, and DONE exist
+	const allColumns = $derived(() => {
+		const dbCols = [...projectStore.columns];
+		
+		const defaults = [
+			{ id: -1, name: 'NOT NOW', order: -100, project_id: projectStore.currentProject?.id || 0 },
+			{ id: -2, name: 'MAYBE?', order: -99, project_id: projectStore.currentProject?.id || 0 },
+			{ id: -3, name: 'DONE', order: 1000, project_id: projectStore.currentProject?.id || 0 }
+		];
+
+		const finalCols = [...dbCols];
+		
+		for (const def of defaults) {
+			if (!finalCols.find(c => c.name === def.name)) {
+				finalCols.push(def);
+			}
+		}
+
+		return finalCols.sort((a, b) => a.order - b.order);
+	});
+
+	const leftColumn = $derived(allColumns().find(c => c.name === 'NOT NOW'));
+	const centerColumn = $derived(allColumns().find(c => c.name === 'MAYBE?'));
+	const rightColumns = $derived(allColumns().filter(c => c.name !== 'NOT NOW' && c.name !== 'MAYBE?'));
 </script>
 
-<div style="max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; padding: 0 1rem;">
-	<!-- Search/Filter Bar -->
-	<div style="width: 100%; max-width: 320px; position: relative; margin-bottom: 2.5rem;">
-		<input 
-			type="text" 
-			placeholder="Filter these cards... [F]" 
-			style="width: 100%; background: #0b1219; border: 1.5px solid #1e293b; border-radius: 9999px; padding: 0.6rem 1.5rem; color: #94a3b8; font-size: 0.9rem; text-align: center; font-weight: 600;"
-		/>
-		<button style="position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%); background: none; border: none; color: #64748b; cursor: pointer; font-size: 1.25rem;">
-			⠿
-		</button>
+<div class="kanban-wrapper">
+	<div class="header-top">
+		<div class="filter-bar glass">
+			<span class="filter-text">Filter these cards... <span class="kbd">F</span></span>
+			<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="2" y1="14" x2="6" y2="14"></line><line x1="10" y1="8" x2="14" y2="8"></line><line x1="18" y1="16" x2="22" y2="16"></line></svg>
+		</div>
 	</div>
 
-	{#if isLoading}
-		<div style="color: #475569; font-weight: 900; margin-top: 4rem; letter-spacing: 0.1em;">LOADING YOUR WORKSPACE...</div>
-	{:else}
-		<!-- Kanban Columns -->
-		<div style="width: 100%; display: grid; grid-template-columns: 80px 1fr 80px; gap: 0; align-items: start;">
-			
-			<!-- Left Column (TODO / NOT NOW) -->
-			<div 
-				role="presentation"
-				ondragover={(e) => e.preventDefault()} 
-				ondrop={() => onDrop('TODO')}
-				style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding-top: 3.5rem; min-height: 400px;"
-			>
-				<div style="width: 40px; height: 40px; border: 2.5px solid #1e293b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 900; color: #475569;">
-					{getTasksByStatus('TODO').length}
+	<div class="kanban-board">
+		<!-- Left Sidebar Column (NOT NOW) -->
+		{#if leftColumn}
+			<div class="column-sidebar left">
+				<div class="count-badge">
+					{getTasksByStatus(leftColumn.name).length}
 				</div>
-				<div class="vertical-label">NOT NOW</div>
-				
-				{#each getTasksByStatus('TODO') as task, i}
-					<div 
-						role="listitem"
-						draggable="true"
-						ondragstart={() => onDragStart(task.id)}
-						class="glass" 
-						style="padding: 1rem; background: #161e27; border: 1.5px solid #1e293b; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: grab; transition: transform 0.1s;"
-					>
-						<span style="color: #ffffff; font-weight: 900;">{i + 1}</span>
-					</div>
-				{/each}
+				<div class="vertical-label">{leftColumn.name}</div>
+				<div class="drop-zone" role="region" aria-label="Drop to move to {leftColumn.name}" ondragover={(e) => e.preventDefault()} ondrop={() => moveTask(0, leftColumn.name)}>
+				</div>
 			</div>
+		{/if}
 
-			<!-- Center Column (IN_PROGRESS / MAYBE?) -->
-			<div 
-				role="presentation"
-				ondragover={(e) => e.preventDefault()} 
-				ondrop={() => onDrop('IN_PROGRESS')}
-				style="display: flex; flex-direction: column; gap: 1rem; min-height: 400px;"
-			>
-				<div style="text-align: center; color: #ffffff; font-size: 0.85rem; font-weight: 900; letter-spacing: 0.15em; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; padding: 0 0.75rem;">
-					<span style="width: 24px;"></span>
-					MAYBE?
-					<span style="font-size: 1.5rem; color: #475569; cursor: pointer;">⠿</span>
-				</div>
-
-				<!-- Add Card Section -->
-				<div class="glass" style="padding: 2rem; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 120px; border: 1.5px solid #1e293b; background: #0b1219;">
-					<button onclick={addTask} class="btn-primary" style="display: flex; align-items: center; gap: 0.75rem;">
-						Add a card <span style="background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 0.35rem; font-size: 0.75rem; font-weight: 900;">C</span>
+		<!-- Central Column (MAYBE?) -->
+		<div class="column-main">
+			{#if centerColumn}
+				<div class="column-header">
+					<h2 class="column-title">{centerColumn.name}</h2>
+					<button class="grid-toggle" aria-label="Toggle grid view">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
 					</button>
 				</div>
 
-				<!-- Tasks -->
-				{#each getTasksByStatus('IN_PROGRESS') as task, i (task.id)}
-					<div 
-						role="listitem"
-						draggable="true"
-						ondragstart={() => onDragStart(task.id)}
-						class="glass" 
-						style="padding: 1.75rem; background: #161e27; border: 1.5px solid #1e293b; cursor: grab;"
-					>
-						<div style="font-size: 0.75rem; color: #475569; font-weight: 900; margin-bottom: 0.75rem; display: flex; gap: 0.75rem;">
-							<span>{getTasksByStatus('IN_PROGRESS').length - i}</span>
-							<span style="text-transform: uppercase; letter-spacing: 0.05em;">{projectStore.currentProject?.name || 'PROJECT'}</span>
-						</div>
-						<h2 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 1.25rem;">{task.title}</h2>
-						<div style="display: flex; align-items: center; gap: 1.25rem;">
-							<div style="width: 44px; height: 44px; background: #fbbf24; color: #451a03; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 900;">KG</div>
-							<div style="font-size: 0.75rem; color: #475569; font-weight: 800; line-height: 1.5;">
-								<div style="color: #64748b;">
-									{new Date(task.created_at).toLocaleDateString()} 
-									{task.due_date ? `• DUE ${new Date(task.due_date).toLocaleDateString()}` : ''}
+				<div class="add-card-zone glass" onclick={addTask} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && addTask()}>
+					<button class="btn-add-card">
+						Add a card <span class="kbd">C</span>
+					</button>
+				</div>
+
+				<div class="cards-list">
+					{#each getTasksByStatus(centerColumn.name).reverse() as task, i (task.id)}
+						<div class="card glass" in:scale={{ duration: 200, start: 0.98 }}>
+							<div class="card-header">
+								<span class="card-index">{tasks.length - i}</span>
+								<span class="card-project">{projectStore.currentProject?.name.toUpperCase()}</span>
+							</div>
+							<h3 class="card-title">{task.title}</h3>
+							<div class="card-footer">
+								<div class="assignee-avatar">
+									{auth.user?.name.split(' ').map(n => n[0]).join('') || 'KG'}
 								</div>
-								<div style="color: #94a3b8; font-weight: 900; text-transform: uppercase;">
-									{auth.user?.name || 'USER'}
+								<div class="card-meta">
+									<div class="meta-row">
+										ADDED {timeAgo(task.created_at)} • {timeAgo(task.created_at)}
+									</div>
+									<div class="meta-author">
+										{auth.user?.name.toUpperCase()}
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				{/each}
-			</div>
-
-			<!-- Right Column (DONE) -->
-			<div 
-				role="presentation"
-				ondragover={(e) => e.preventDefault()} 
-				ondrop={() => onDrop('DONE')}
-				style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem; padding-top: 3.5rem; min-height: 400px;"
-			>
-				<div style="display: flex; flex-direction: column; align-items: center; gap: 1.5rem;">
-					<div style="width: 40px; height: 40px; border: 2.5px solid #1e293b; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.95rem; font-weight: 900; color: #475569;">
-						{getTasksByStatus('DONE').length}
-					</div>
-					<span style="font-size: 2rem; color: #1e293b; font-weight: 900;">+</span>
+					{/each}
 				</div>
-				<div class="vertical-label">DONE</div>
-
-				{#each getTasksByStatus('DONE') as task, i}
-					<div 
-						role="listitem"
-						draggable="true"
-						ondragstart={() => onDragStart(task.id)}
-						class="glass" 
-						style="padding: 1rem; background: #161e27; border: 1.5px solid #1e293b; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: grab; opacity: 0.5;"
-					>
-						<span style="color: #ffffff; font-weight: 900;">{i + 1}</span>
-					</div>
-				{/each}
-			</div>
+			{/if}
 		</div>
-	{/if}
+
+		<!-- Right Sidebar Columns -->
+		<div class="right-columns">
+			{#each rightColumns as col}
+				<div class="column-sidebar right">
+					<div class="count-badge">
+						{getTasksByStatus(col.name).length}
+					</div>
+					<div class="vertical-label">{col.name}</div>
+				</div>
+			{/each}
+
+			<button class="btn-add-column" onclick={addColumn} aria-label="Add column">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+			</button>
+		</div>
+	</div>
 </div>
 
-<!-- Connection Status -->
-<div style="position: fixed; bottom: 4rem; right: 2rem; font-size: 0.6rem; color: #334155; opacity: 0.5;">
-	{status} {#if backendData}({backendData.backend} v{backendData.version}){/if}
-</div>
+<style>
+	.kanban-wrapper {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		width: 100%;
+		height: calc(100vh - 120px - 80px);
+		background: #0b1219;
+		overflow: hidden;
+	}
+
+	.header-top {
+		width: 100%;
+		display: flex;
+		justify-content: center;
+		padding: 1.5rem 0;
+	}
+
+	.filter-bar {
+		background: #161e27;
+		border: 1.5px solid #1e293b;
+		border-radius: 9999px;
+		padding: 0.4rem 1.25rem;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		color: #475569;
+		font-size: 0.8rem;
+		font-weight: 700;
+	}
+
+	.filter-text {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.kanban-board {
+		display: flex;
+		justify-content: center;
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+	}
+
+	/* Sidebar Columns */
+	.column-sidebar {
+		width: 60px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		padding: 1.5rem 0;
+		position: relative;
+		flex-shrink: 0;
+	}
+
+	.count-badge {
+		width: 32px;
+		height: 32px;
+		background: radial-gradient(circle at 30% 30%, #334155, #0f172a);
+		border: 1px solid #334155;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 900;
+		font-size: 0.75rem;
+		color: #94a3b8;
+		margin-bottom: 1.5rem;
+	}
+
+	.vertical-label {
+		writing-mode: vertical-rl;
+		text-transform: uppercase;
+		font-size: 0.75rem;
+		font-weight: 900;
+		color: #475569;
+		letter-spacing: 0.15em;
+		transform: rotate(180deg);
+	}
+
+	/* Main Column */
+	.column-main {
+		width: 100%;
+		max-width: 540px;
+		display: flex;
+		flex-direction: column;
+		padding: 0 1rem;
+		overflow-y: auto;
+		scrollbar-width: none;
+	}
+
+	.column-main::-webkit-scrollbar {
+		display: none;
+	}
+
+	.column-header {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		position: sticky;
+		top: 0;
+		background: #0b1219;
+		padding: 0 0 1.5rem 0;
+		z-index: 10;
+	}
+
+	.column-title {
+		font-size: 0.8rem;
+		font-weight: 900;
+		color: #ffffff;
+		letter-spacing: 0.15em;
+		text-transform: uppercase;
+	}
+
+	.grid-toggle {
+		position: absolute;
+		right: 0;
+		background: none;
+		border: none;
+		color: #475569;
+		cursor: pointer;
+	}
+
+	/* Add Card Zone */
+	.add-card-zone {
+		border: 1px solid #1e293b;
+		border-radius: 0.75rem;
+		padding: 2rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		margin-bottom: 1.25rem;
+		cursor: pointer;
+		transition: border-color 0.2s;
+	}
+
+	.add-card-zone:hover {
+		border-color: #3b82f6;
+	}
+
+	.btn-add-card {
+		background: #3b82f6;
+		color: white;
+		border: none;
+		padding: 0.6rem 1.5rem;
+		border-radius: 9999px;
+		font-weight: 800;
+		font-size: 0.85rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+	}
+
+	.kbd {
+		background: rgba(255,255,255,0.2);
+		padding: 0.1rem 0.3rem;
+		border-radius: 3px;
+		font-size: 0.65rem;
+	}
+
+	/* Cards */
+	.cards-list {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		padding-bottom: 4rem;
+	}
+
+	.card {
+		background: #161e27;
+		border: 1px solid #1e293b;
+		border-radius: 0.75rem;
+		padding: 1.75rem;
+		transition: transform 0.2s, border-color 0.2s;
+	}
+
+	.card:hover {
+		transform: translateY(-2px);
+		border-color: #3b82f6;
+	}
+
+	.card-header {
+		display: flex;
+		gap: 0.75rem;
+		font-size: 0.7rem;
+		font-weight: 900;
+		margin-bottom: 1rem;
+		color: #475569;
+	}
+
+	.card-title {
+		font-size: 1.4rem;
+		font-weight: 800;
+		color: #ffffff;
+		margin-bottom: 1.5rem;
+		line-height: 1.2;
+	}
+
+	.card-footer {
+		display: flex;
+		align-items: center;
+		gap: 1.25rem;
+		border-top: 1px solid #1e293b;
+		padding-top: 1.25rem;
+	}
+
+	.assignee-avatar {
+		width: 32px;
+		height: 32px;
+		background: #eab308;
+		color: #422006;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.75rem;
+		font-weight: 900;
+	}
+
+	.card-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.meta-row {
+		font-size: 0.65rem;
+		font-weight: 700;
+		color: #3b82f6;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
+	.meta-author {
+		font-size: 0.75rem;
+		font-weight: 900;
+		color: #94a3b8;
+		letter-spacing: 0.05em;
+	}
+
+	/* Right Columns Container */
+	.right-columns {
+		display: flex;
+		flex-shrink: 0;
+	}
+
+	.btn-add-column {
+		width: 40px;
+		background: none;
+		border: none;
+		color: #1e293b;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: color 0.2s;
+	}
+
+	.btn-add-column:hover {
+		color: #3b82f6;
+	}
+
+	.glass {
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+	}
+</style>

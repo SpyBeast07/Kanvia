@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
-from .models import UserRole, TaskStatus
+from .models import UserRole
 
 # User Schemas
 class UserBase(BaseModel):
@@ -28,11 +28,23 @@ class ProjectRead(ProjectBase):
     created_by: int
     created_at: datetime
 
+# Column Schemas
+class ProjectColumnBase(BaseModel):
+    name: str
+    order: int
+
+class ProjectColumnCreate(ProjectColumnBase):
+    pass
+
+class ProjectColumnRead(ProjectColumnBase):
+    id: int
+    project_id: int
+
 # Task Schemas
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
-    status: TaskStatus = TaskStatus.TODO
+    status: str = "MAYBE?"
     assigned_to: Optional[int] = None
     due_date: Optional[datetime] = None
 
@@ -42,7 +54,7 @@ class TaskCreate(TaskBase):
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
-    status: Optional[TaskStatus] = None
+    status: Optional[str] = None
     assigned_to: Optional[int] = None
     due_date: Optional[datetime] = None
 

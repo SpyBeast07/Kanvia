@@ -5,10 +5,11 @@ from sqlmodel import Session, select
 from datetime import datetime
 
 from .database import init_db, get_session
-from .models import User, Project, Task, ProjectMemberLink, UserRole
+from .models import User, Project, Task, ProjectMemberLink, UserRole, ProjectColumn
 from .schemas import (
     UserCreate, UserRead, ProjectCreate, ProjectRead,
-    TaskCreate, TaskRead, TaskUpdate, Token, LoginRequest
+    TaskCreate, TaskRead, TaskUpdate, Token, LoginRequest,
+    ProjectColumnCreate, ProjectColumnRead
 )
 from .auth import (
     get_password_hash, verify_password, create_access_token,
@@ -81,11 +82,17 @@ def create_project(
     session.commit()
     session.refresh(new_project)
     
-    # Add creator as a member automatically
+    # Auto-add creator as member
     member_link = ProjectMemberLink(user_id=current_user.id, project_id=new_project.id)
     session.add(member_link)
-    session.commit()
     
+    # Seed default columns
+    default_columns = ["NOT NOW", "MAYBE?", "DONE"]
+    for i, col_name in enumerate(default_columns):
+        col = ProjectColumn(name=col_name, order=i, project_id=new_project.id)
+        session.add(col)
+        
+    session.commit()
     return new_project
 
 @app.post("/api/projects/{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)
@@ -127,7 +134,54 @@ def list_projects(
     statement = select(Project).join(ProjectMemberLink).where(ProjectMemberLink.user_id == current_user.id)
     return session.exec(statement).all()
 
-# --- Task Endpoints ---
+# --- Column Endpoints ---
+
+@app.get("/api/projects/{project_id}/columns", response_model=List[ProjectColumnRead])
+def list_columns(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # Admins or members can see columns
+    if current_user.role != UserRole.ADMIN:
+        member = session.get(ProjectMemberLink, (current_user.id, project_id))
+        if not member:
+            raise HTTPException(status_code=403, detail="Not a member of this project")
+            
+    statement = select(ProjectColumn).where(ProjectColumn.project_id == project_id).order_by(ProjectColumn.order)
+    return session.exec(statement).all()
+
+@app.post("/api/projects/{project_id}/columns", response_model=ProjectColumnRead)
+def create_column(
+    project_id: int,
+    column_data: ProjectColumnCreate,
+    current_user: User = Depends(check_admin),
+    session: Session = Depends(get_session)
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # If the requested order is where DONE is, or if we want it "before done"
+    # we should shift existing columns.
+    # To keep it simple, let's find the current highest order (DONE)
+    done_col = session.exec(select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.name == "DONE")).first()
+    
+    new_order = column_data.order
+    if done_col and new_order >= done_col.order:
+        new_order = done_col.order
+        # Shift DONE and any others after new_order
+        statement = select(ProjectColumn).where(ProjectColumn.project_id == project_id, ProjectColumn.order >= new_order)
+        to_shift = session.exec(statement).all()
+        for col in to_shift:
+            col.order += 1
+            session.add(col)
+            
+    new_column = ProjectColumn(name=column_data.name, order=new_order, project_id=project_id)
+    session.add(new_column)
+    session.commit()
+    session.refresh(new_column)
+    return new_column
 
 @app.post("/api/tasks", response_model=TaskRead)
 def create_task(

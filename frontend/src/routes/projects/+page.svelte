@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { projectStore } from '$lib/projects.svelte';
-	import { auth } from '$lib/auth.svelte';
-	import { ui } from '$lib/ui.svelte';
-	import { apiRequest } from '$lib/api/index';
+	import { projectStore } from '../../lib/projects.svelte.ts';
+	import { auth } from '../../lib/auth.svelte.ts';
+	import { ui } from '../../lib/ui.svelte.ts';
+	import { apiRequest } from '../../lib/api/index.ts';
 	import { goto } from '$app/navigation';
 
 	let isLoadingUsers = $state(false);
