@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { apiRequest } from '../lib/api.svelte.ts';
-	import { ui } from '../lib/ui.svelte.ts';
-	import { projectStore } from '../lib/projects.svelte.ts';
-	import { auth } from '../lib/auth.svelte.ts';
+	import { apiRequest } from '$lib/api.svelte.ts';
+	import { ui } from '$lib/ui.svelte.ts';
+	import { projectStore } from '$lib/projects.svelte.ts';
+	import { auth } from '$lib/auth.svelte.ts';
 	import { fade, scale } from 'svelte/transition';
 
 	interface Task {

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { apiRequest } from '../../lib/api.svelte.ts';
-	import { auth } from '../../lib/auth.svelte.ts';
+	import { apiRequest } from '$lib/api.svelte.ts';
+	import { auth } from '$lib/auth.svelte.ts';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
