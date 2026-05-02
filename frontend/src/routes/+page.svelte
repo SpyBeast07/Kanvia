@@ -22,6 +22,7 @@
 	let isLoading = $state(true);
 	let activeColumnId = $state<number | null>(null);
 	let draggedTaskId = $state<number | null>(null);
+	let gridViewColumn = $state<string | null>(null);
 
 	function toggleColumn(columnId: number) {
 		activeColumnId = activeColumnId === columnId ? null : columnId;
@@ -76,7 +77,10 @@
 
 	$effect(() => {
 		const handleKeydown = (e: KeyboardEvent) => {
-			if (e.key === 'f' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+			if (e.key === 'Escape' && gridViewColumn) {
+				e.preventDefault();
+				gridViewColumn = null;
+			} else if (e.key === 'f' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
 				e.preventDefault();
 				searchInput?.focus();
 			} else if (e.key === 'c' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
@@ -141,108 +145,136 @@
 </script>
 
 <div class="board-container" in:fade>
-	<div class="board-header">
-		<div class="search-wrapper">
-			<input 
-				bind:this={searchInput}
-				type="text" 
-				class="task-search-input" 
-				bind:value={ui.taskSearchQuery} 
-				placeholder="Filter these cards... [F]" 
-			/>
-			<div class="filter-icon">
-				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+	{#if gridViewColumn}
+		{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === gridViewColumn.toLowerCase())}
+		<div class="grid-view-overlay">
+			<div class="grid-view-header">
+				<button class="back-btn" onclick={() => gridViewColumn = null}>
+					Back to Playground <span class="kbd-shortcut">ESC</span>
+				</button>
+				<h2 class="grid-view-title">Column: {gridViewColumn}</h2>
+				<div class="header-right-spacer"></div>
+			</div>
+			
+			<div class="grid-cards-container">
+				{#each colTasks as task, index}
+					<div class="task-card">
+						<div class="task-card-header">
+							<span class="task-id">{colTasks.length - index}</span>
+							<span class="task-project">{projectStore.currentProject?.name}</span>
+						</div>
+						<h4 class="task-title">{task.title}</h4>
+						<div class="task-meta">
+							<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
+							<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
+							<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
+							<div class="meta-divider"></div>
+							<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
+						</div>
+					</div>
+				{/each}
 			</div>
 		</div>
-	</div>
+	{:else}
+		<div class="board-header">
+			<div class="search-wrapper">
+				<input 
+					bind:this={searchInput}
+					type="text" 
+					class="task-search-input" 
+					bind:value={ui.taskSearchQuery} 
+					placeholder="Filter these cards... [F]" 
+				/>
+				<div class="filter-icon">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
+				</div>
+			</div>
+		</div>
 
-	<div class="fizzy-layout">
-		{#each projectStore.columns as column}
-			{@const isMaybe = column.name.toLowerCase() === 'maybe?'}
-			{@const isExpanded = isMaybe || column.id === activeColumnId}
-			{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === column.name.toLowerCase())}
-			
-			{#if isExpanded}
-				<div 
-					class="center-column"
-					role="region"
-					ondragover={(e) => e.preventDefault()}
-					ondrop={(e) => handleDrop(e, column.name)}
-				>
-					<div class="center-col-header">
-						<h3 
-							class="center-col-title" 
-							style={!isMaybe ? 'cursor: pointer;' : ''}
-							onclick={() => !isMaybe && toggleColumn(column.id)}
-						>
-							{column.name}
-						</h3>
-						{#if isMaybe}
-							<button class="grid-view-btn" aria-label="Grid View">
+		<div class="fizzy-layout">
+			{#each projectStore.columns as column}
+				{@const isMaybe = column.name.toLowerCase() === 'maybe?'}
+				{@const isExpanded = isMaybe || column.id === activeColumnId}
+				{@const colTasks = filteredTasks().filter(t => t.status.toLowerCase() === column.name.toLowerCase())}
+				
+				{#if isExpanded}
+					<div 
+						class="center-column"
+						role="region"
+						ondragover={(e) => e.preventDefault()}
+						ondrop={(e) => handleDrop(e, column.name)}
+					>
+						<div class="center-col-header">
+							<h3 
+								class="center-col-title" 
+								style={!isMaybe ? 'cursor: pointer;' : ''}
+								onclick={() => !isMaybe && toggleColumn(column.id)}
+							>
+								{column.name}
+							</h3>
+							<button class="grid-view-btn" aria-label="Grid View" onclick={() => gridViewColumn = column.name}>
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
 							</button>
-						{:else}
-							<div style="width: 20px;"></div>
-						{/if}
-					</div>
-					
-					{#if isMaybe}
-						<div class="add-card-wrapper">
-							<button class="add-card-btn" onclick={() => handleAddTask(column.name)}>
-								Add a card <span class="kbd">C</span>
-							</button>
 						</div>
-					{/if}
-
-					<div class="tasks-list">
-						{#if colTasks.length === 0}
-							<div class="empty-dropzone">
-								Drag cards here
+						
+						{#if isMaybe}
+							<div class="add-card-wrapper">
+								<button class="add-card-btn" onclick={() => handleAddTask(column.name)}>
+									Add a card <span class="kbd">C</span>
+								</button>
 							</div>
-						{:else}
-							{#each colTasks as task}
-								<div 
-									class="task-card"
-									draggable="true"
-									role="button"
-									tabindex="0"
-									ondragstart={(e) => handleDragStart(e, task.id)}
-									style={draggedTaskId === task.id ? 'opacity: 0.5;' : ''}
-								>
-									<div class="task-card-header">
-										<span class="task-id">{task.id}</span>
-										<span class="task-project">{projectStore.currentProject?.name}</span>
-									</div>
-									<h4 class="task-title">{task.title}</h4>
-									<div class="task-meta">
-										<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
-										<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
-										<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
-										<div class="meta-divider"></div>
-										<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
-									</div>
-								</div>
-							{/each}
 						{/if}
-					</div>
-				</div>
-			{:else}
-				<button 
-					class="collapsed-column" 
-					onclick={() => toggleColumn(column.id)}
-					ondragover={(e) => e.preventDefault()}
-					ondrop={(e) => handleDrop(e, column.name)}
-				>
-					<div class="collapsed-count">{colTasks.length}</div>
-					<div class="vertical-title">{column.name}</div>
-				</button>
-			{/if}
-		{/each}
 
-		<div class="add-col-wrapper">
-			<button class="add-col-mini" onclick={handleAddColumn}>+</button>
+						<div class="tasks-list">
+							{#if colTasks.length === 0}
+								<div class="empty-dropzone">
+									Drag cards here
+								</div>
+							{:else}
+								{#each colTasks as task, index}
+									<div 
+										class="task-card"
+										draggable="true"
+										role="button"
+										tabindex="0"
+										ondragstart={(e) => handleDragStart(e, task.id)}
+										style={draggedTaskId === task.id ? 'opacity: 0.5;' : ''}
+									>
+										<div class="task-card-header">
+											<span class="task-id">{colTasks.length - index}</span>
+											<span class="task-project">{projectStore.currentProject?.name}</span>
+										</div>
+										<h4 class="task-title">{task.title}</h4>
+										<div class="task-meta">
+											<div class="user-badge-small">{auth.users.find(u => u.id === task.created_by)?.name.split(' ').map((n: string)=>n[0]).join('') || '?'}</div>
+											<span class="meta-item">ADDED {new Date(task.created_at).toLocaleDateString()}</span>
+											<span class="meta-item">↻ {new Date(task.updated_at || task.created_at).toLocaleDateString()}</span>
+											<div class="meta-divider"></div>
+											<span class="meta-item author">{auth.users.find(u => u.id === task.created_by)?.name.toUpperCase()}</span>
+										</div>
+									</div>
+								{/each}
+							{/if}
+						</div>
+					</div>
+				{:else}
+					<button 
+						class="collapsed-column" 
+						onclick={() => toggleColumn(column.id)}
+						ondragover={(e) => e.preventDefault()}
+						ondrop={(e) => handleDrop(e, column.name)}
+					>
+						<div class="collapsed-count">{colTasks.length}</div>
+						<div class="vertical-title">{column.name}</div>
+					</button>
+				{/if}
+			{/each}
+
+			<div class="add-col-wrapper">
+				<button class="add-col-mini" onclick={handleAddColumn}>+</button>
+			</div>
 		</div>
-	</div>
+	{/if}
 </div>
 
 <style>
@@ -519,5 +551,74 @@
 
 	.author {
 		color: var(--text-secondary);
+	}
+
+	.grid-view-overlay {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+		height: 100%;
+		padding: 0 4rem;
+	}
+
+	.grid-view-header {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+		padding: 1.5rem 0;
+		border-bottom: 1px solid var(--border-color);
+		margin-bottom: 2rem;
+		width: 100%;
+		max-width: 1400px;
+		margin-left: auto;
+		margin-right: auto;
+	}
+
+	.back-btn {
+		background: none;
+		border: none;
+		color: white;
+		font-weight: 800;
+		font-size: 1rem;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		transition: opacity 0.2s;
+		text-transform: none;
+		justify-self: start;
+	}
+
+	.header-right-spacer {
+		justify-self: end;
+	}
+
+	.back-btn:hover {
+		opacity: 0.8;
+	}
+
+	.grid-view-title {
+		font-size: 1.5rem;
+		font-weight: 900;
+		color: white;
+		margin: 0;
+		justify-self: center;
+	}
+
+	.grid-cards-container {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 1.5rem;
+		overflow-y: auto;
+		padding-bottom: 4rem;
+		max-width: 1400px;
+		width: 100%;
+		margin: 0 auto;
+	}
+
+	.grid-cards-container .task-card {
+		width: 380px;
+		flex: 0 0 auto;
 	}
 </style>

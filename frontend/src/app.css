@@ -67,3 +67,15 @@ a {
 	letter-spacing: 0.15em;
 	transform: rotate(180deg);
 }
+
+.kbd-shortcut {
+	background: #1e293b;
+	color: #94a3b8;
+	font-size: 0.7rem;
+	padding: 0.2rem 0.5rem;
+	border-radius: 0.25rem;
+	font-weight: 900;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}

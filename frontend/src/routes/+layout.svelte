@@ -243,7 +243,7 @@
 					<button class="action-btn" onclick={() => { ui.activeFilter = s.filter as any; goto(s.path); showNav = false; }}>
 						<div class="action-icon-box">
 							<span class="icon">{s.icon}</span>
-							<span class="shortcut">{i + 1}</span>
+							<span class="kbd-shortcut">{i + 1}</span>
 						</div>
 						<span class="action-label">{s.name}</span>
 					</button>
