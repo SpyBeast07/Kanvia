@@ -134,6 +134,40 @@ def list_projects(
     statement = select(Project).join(ProjectMemberLink).where(ProjectMemberLink.user_id == current_user.id)
     return session.exec(statement).all()
 
+@app.delete("/api/projects/{project_id}")
+def delete_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user is the creator or an admin
+    if project.created_by != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this project")
+    
+    # Manually delete related items if no cascade is configured
+    # Delete tasks
+    tasks = session.exec(select(Task).where(Task.project_id == project_id)).all()
+    for task in tasks:
+        session.delete(task)
+    
+    # Delete columns
+    columns = session.exec(select(ProjectColumn).where(ProjectColumn.project_id == project_id)).all()
+    for col in columns:
+        session.delete(col)
+        
+    # Delete member links
+    links = session.exec(select(ProjectMemberLink).where(ProjectMemberLink.project_id == project_id)).all()
+    for link in links:
+        session.delete(link)
+    
+    session.delete(project)
+    session.commit()
+    return {"message": "Project deleted successfully"}
+
 # --- Column Endpoints ---
 
 @app.get("/api/projects/{project_id}/columns", response_model=List[ProjectColumnRead])

@@ -190,7 +190,7 @@
 		return result;
 	});
 
-	let searchInput = $state<HTMLInputElement>();
+	let searchInput = $state<HTMLInputElement | null>(null);
 
 	$effect(() => {
 		const handleKeydown = (e: KeyboardEvent) => {

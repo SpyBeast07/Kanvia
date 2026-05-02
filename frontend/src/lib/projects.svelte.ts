@@ -83,6 +83,24 @@ class ProjectStore {
             throw new Error(err.message);
         }
     }
+
+    async deleteProject(projectId: number) {
+        try {
+            await apiRequest(`/projects/${projectId}`, 'DELETE');
+            this.projects = this.projects.filter(p => p.id !== projectId);
+            if (this.currentProject?.id === projectId) {
+                if (this.projects.length > 0) {
+                    this.setCurrentProject(this.projects[0]);
+                } else {
+                    this.currentProject = null;
+                    localStorage.removeItem('kanvia_current_project_id');
+                    this.columns = [];
+                }
+            }
+        } catch (err: any) {
+            throw new Error(err.message);
+        }
+    }
 }
 
 export const projectStore = new ProjectStore();
