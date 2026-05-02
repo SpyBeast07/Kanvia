@@ -24,6 +24,8 @@
 	let draggedTaskId = $state<number | null>(null);
 	let gridViewColumn = $state<string | null>(null);
 	let columnMenuOpen = $state<number | null>(null);
+	let columnHover = $state<number | null>(null);
+	let columnDragOver = $state<number | null>(null);
 
 	function saveColumnState() {
 		if (!projectStore.currentProject) return;
@@ -302,9 +304,11 @@
 				{#if isExpanded}
 					<div 
 						class="center-column"
+						class:column-drag-over={columnDragOver === column.id}
 						role="region"
-						ondragover={(e) => e.preventDefault()}
-						ondrop={(e) => handleDrop(e, column.name)}
+						ondragover={(e) => { e.preventDefault(); columnDragOver = column.id; }}
+						ondragleave={() => columnDragOver = null}
+						ondrop={(e) => { handleDrop(e, column.name); columnDragOver = null; }}
 					>
 						<div class="center-col-header">
 							{#if !isDefaultColumn(column.name)}
@@ -385,9 +389,19 @@
 				{:else}
 					<button 
 						class="collapsed-column" 
+						class:column-drag-over={columnDragOver === column.id}
 						onclick={() => toggleColumn(column.id)}
-						ondragover={(e) => e.preventDefault()}
-						ondrop={(e) => handleDrop(e, column.name)}
+						onmouseenter={() => columnHover = column.id}
+						onmouseleave={() => columnHover = null}
+						ondragenter={() => { columnDragOver = column.id; }}
+						ondragleave={(e) => {
+							const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+							const { clientX, clientY } = e;
+							if (clientX < rect.left || clientX >= rect.right || clientY < rect.top || clientY >= rect.bottom) {
+								columnDragOver = null;
+							}
+						}}
+						ondrop={(e) => { handleDrop(e, column.name); columnDragOver = null; }}
 					>
 						<div class="collapsed-count">{colTasks.length}</div>
 						<div class="vertical-title">{column.name}</div>
@@ -468,10 +482,24 @@
 		padding-left: 0;
 		padding-right: 0;
 		transition: opacity 0.2s;
+		position: relative;
 	}
 
 	.collapsed-column:hover {
 		opacity: 0.8;
+	}
+
+	.collapsed-column.column-drag-over::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		border: 2px dotted var(--text-muted);
+		border-radius: 8px;
+		pointer-events: none;
+		z-index: 10;
 	}
 
 	.collapsed-count {
@@ -531,6 +559,7 @@
 		height: 100px;
 		color: var(--text-secondary);
 		font-weight: 700;
+		margin: 0 0.5rem;
 	}
 
 	.center-column {
@@ -540,6 +569,21 @@
 		flex-direction: column;
 		gap: 1.5rem;
 		padding-bottom: 4rem;
+		transition: box-shadow 0.2s;
+		position: relative;
+	}
+
+	.center-column.column-drag-over::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		border: 2px dotted var(--text-muted);
+		border-radius: 8px;
+		pointer-events: none;
+		z-index: 10;
 	}
 
 	.center-col-header {
@@ -652,6 +696,7 @@
 		align-items: center;
 		gap: 1rem;
 		background: rgba(59, 130, 246, 0.02);
+		margin: 0 0.5rem;
 	}
 
 	.add-card-btn {
@@ -690,6 +735,7 @@
 		border-radius: 0.5rem;
 		padding: 1rem 1.25rem;
 		transition: all 0.2s;
+		margin: 0 0.5rem;
 	}
 
 	.task-card:hover {
