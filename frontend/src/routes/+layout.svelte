@@ -1,36 +1,87 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import '../app.css';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { fade, scale, slide } from 'svelte/transition';
-	import { auth } from '$lib/auth.svelte';
-	import { apiRequest } from '$lib/api/index';
-	import { ui } from '$lib/ui.svelte';
-	import { projectStore } from '$lib/projects.svelte';
-	import Dialog from '$lib/components/Dialog.svelte';
+	import { auth } from '../lib/auth.svelte.ts';
+	import { apiRequest } from '../lib/api/index.ts';
+	import { ui } from '../lib/ui.svelte.ts';
+	import { projectStore } from '../lib/projects.svelte.ts';
+	import Dialog from '../lib/components/Dialog.svelte';
 
 	let { children } = $props();
- 	let showNav = $state(false);
-
+	let showNav = $state(false);
 	let searchQuery = $state('');
 
-	function toggleNav() {
-		showNav = !showNav;
-		if (showNav) searchQuery = '';
+	// Action to focus input without using autofocus attribute
+	function focusOnMount(node: HTMLInputElement) {
+		node.focus();
 	}
 
+	async function toggleNav() {
+		showNav = !showNav;
+		if (showNav) {
+			searchQuery = '';
+			if (auth.token) auth.loadUsers();
+		}
+	}
+
+	// Filtered Results
 	const filteredProjects = $derived(
-		projectStore.projects.filter(p => 
-			p.name.toLowerCase().includes(searchQuery.toLowerCase())
-		)
+		projectStore.projects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
+	const filteredUsers = $derived(
+		auth.users.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
+	const shortcuts = [
+		{ id: 'home', name: 'Home', icon: '🏠', filter: null, path: '/' },
+		{ id: 'assigned', name: 'Assigned to me', icon: '📋', filter: 'assigned', path: '/' },
+		{ id: 'added', name: 'Added by me', icon: '👤+', filter: 'added', path: '/' }
+	];
+
+	const filteredShortcuts = $derived(
+		shortcuts.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
+	const settingsOptions = [
+		{ name: 'Account Settings', icon: '⚙️', path: '/settings', action: null },
+		{ name: 'Sign out', icon: '🚪', path: null, action: () => auth.logout() }
+	];
+
+	const filteredSettings = $derived(
+		settingsOptions.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
+	// Visibility Logic for Dividers
+	const showShortcuts = $derived(searchQuery && filteredShortcuts.length > 0);
+	const showProjects = $derived(!searchQuery || filteredProjects.length > 0);
+	const showPeople = $derived(!searchQuery || filteredUsers.length > 0);
+	const showSettings = $derived(!searchQuery || filteredSettings.length > 0);
+
 	function handleSearchKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' && filteredProjects.length > 0) {
-			projectStore.setCurrentProject(filteredProjects[0]);
-			goto('/');
+		if (e.key === 'Escape') {
 			showNav = false;
+			return;
+		}
+		if (e.key === 'Enter') {
+			if (filteredShortcuts.length > 0) {
+				const s = filteredShortcuts[0];
+				ui.activeFilter = s.filter as any;
+				goto(s.path);
+				showNav = false;
+			} else if (filteredProjects.length > 0) {
+				projectStore.setCurrentProject(filteredProjects[0]);
+				goto('/');
+				showNav = false;
+			} else if (filteredSettings.length > 0) {
+				const s = filteredSettings[0];
+				if (s.action) s.action();
+				else if (s.path) goto(s.path);
+				showNav = false;
+			}
 		}
 	}
 
@@ -55,6 +106,7 @@
 
 			if (auth.token) {
 				projectStore.loadProjects();
+				auth.loadUsers();
 			}
 		};
 
@@ -97,12 +149,28 @@
 		const name = await ui.prompt('Enter project name:');
 		if (!name) return;
 		try {
-			await apiRequest('/projects', 'POST', { name });
-			projectStore.loadProjects();
+			await projectStore.createProject(name);
 			ui.alert('Project created successfully!');
 		} catch (err: any) {
 			ui.alert(err.message, 'Error');
 		}
+	}
+
+	async function handleInviteUser() {
+		const email = await ui.prompt('Enter email address to invite:');
+		if (!email) return;
+		ui.alert('Invitation feature coming soon!', 'Info');
+	}
+
+	let expandedSections = $state({
+		shortcuts: true,
+		projects: true,
+		people: true,
+		settings: true
+	});
+
+	function toggleSection(section: keyof typeof expandedSections) {
+		expandedSections[section] = !expandedSections[section];
 	}
 </script>
 
@@ -169,71 +237,128 @@
 				<div class="panel-search">
 					<input 
 						type="text" 
+						use:focusOnMount
 						bind:value={searchQuery}
 						onkeydown={handleSearchKeydown}
 						placeholder="Type to jump to a Projects, person, place, or tag..." 
-						autofocus
 					/>
 				</div>
 
-				<div class="action-grid">
-					<button class="action-btn" onclick={() => { ui.activeFilter = null; goto('/'); showNav = false; }}>
+				{#if !searchQuery}
+				<div class="action-grid" transition:slide>
+					{#each shortcuts as s, i}
+					<button class="action-btn" onclick={() => { ui.activeFilter = s.filter as any; goto(s.path); showNav = false; }}>
 						<div class="action-icon-box">
-							<span class="icon">🏠</span>
-							<span class="shortcut">1</span>
+							<span class="icon">{s.icon}</span>
+							<span class="shortcut">{i + 1}</span>
 						</div>
-						<span class="action-label">Home</span>
+						<span class="action-label">{s.name}</span>
 					</button>
-					<button class="action-btn" onclick={() => { ui.activeFilter = 'assigned'; goto('/'); showNav = false; }}>
-						<div class="action-icon-box">
-							<span class="icon">📋</span>
-							<span class="shortcut">2</span>
-						</div>
-						<span class="action-label">Assigned to me</span>
-					</button>
-					<button class="action-btn" onclick={() => { ui.activeFilter = 'added'; goto('/'); showNav = false; }}>
-						<div class="action-icon-box">
-							<span class="icon">👤+</span>
-							<span class="shortcut">3</span>
-						</div>
-						<span class="action-label">Added by me</span>
-					</button>
+					{/each}
 				</div>
-
 				<div class="section-divider"></div>
+				{/if}
 
 				<div class="panel-sections">
-					<div class="section">
-						<div class="section-header">
-							<span class="chevron">⌄</span> PROJECTS
+					<!-- Shortcuts Search Results -->
+					{#if showShortcuts}
+					<div class="section" transition:slide>
+						<button class="section-header" onclick={() => toggleSection('shortcuts')}>
+							<span class="chevron" class:collapsed={!expandedSections.shortcuts}>⌄</span> SHORTCUTS
+						</button>
+						{#if expandedSections.shortcuts}
+						<div class="items-list" transition:slide>
+							{#each filteredShortcuts as s}
+								<button class="section-item" onclick={() => { ui.activeFilter = s.filter as any; goto(s.path); showNav = false; }}>
+									<span class="item-icon">{s.icon}</span> {s.name}
+								</button>
+							{/each}
 						</div>
-						{#if auth.user?.role === 'ADMIN'}
-							<button class="section-item add" onclick={handleAddProject}>
-								<span class="item-icon">+</span> Add a project
-							</button>
 						{/if}
-						<div class="items-list">
+					</div>
+					{#if showProjects || showPeople || showSettings}
+						<div class="section-divider"></div>
+					{/if}
+					{/if}
+
+					<!-- Projects Section -->
+					{#if showProjects}
+					<div class="section">
+						<button class="section-header" onclick={() => toggleSection('projects')}>
+							<span class="chevron" class:collapsed={!expandedSections.projects}>⌄</span> PROJECTS
+						</button>
+						{#if expandedSections.projects}
+						<div class="items-list" transition:slide>
+							{#if !searchQuery && auth.user?.role === 'ADMIN'}
+								<button class="section-item add" onclick={handleAddProject}>
+									<span class="item-icon">+</span> Add a project
+								</button>
+							{/if}
 							{#each filteredProjects as project}
 								<button class="section-item" onclick={() => { projectStore.setCurrentProject(project); goto('/'); showNav = false; }}>
 									<span class="item-icon">📄</span> {project.name}
 								</button>
 							{/each}
 						</div>
+						{/if}
 					</div>
+					{#if showPeople || showSettings}
+						<div class="section-divider"></div>
+					{/if}
+					{/if}
 
-					<div class="section-divider"></div>
-
+					<!-- People Section -->
+					{#if showPeople}
 					<div class="section">
-						<div class="section-header">
-							<span class="chevron">⌄</span> SETTINGS
-						</div>
-						<a href="/settings" class="section-item" onclick={() => showNav = false}>
-							<span class="item-icon">⚙️</span> Account Settings
-						</a>
-						<button class="section-item" onclick={() => { auth.logout(); showNav = false; }}>
-							<span class="item-icon">🚪</span> Sign out
+						<button class="section-header" onclick={() => toggleSection('people')}>
+							<span class="chevron" class:collapsed={!expandedSections.people}>⌄</span> PEOPLE
 						</button>
+						{#if expandedSections.people}
+						<div class="items-list" transition:slide>
+							{#if !searchQuery && auth.user?.role === 'ADMIN'}
+								<button class="section-item add" onclick={handleInviteUser}>
+									<span class="item-icon">+</span> Invite people
+								</button>
+							{/if}
+							{#each filteredUsers as user}
+								<div class="section-item">
+									<div class="item-icon initials-small">
+										{user.name.split(' ').map(n => n[0]).join('')}
+									</div>
+									{user.name}
+								</div>
+							{/each}
+						</div>
+						{/if}
 					</div>
+					{#if showSettings}
+						<div class="section-divider"></div>
+					{/if}
+					{/if}
+
+					<!-- Settings Section -->
+					{#if showSettings}
+					<div class="section">
+						<button class="section-header" onclick={() => toggleSection('settings')}>
+							<span class="chevron" class:collapsed={!expandedSections.settings}>⌄</span> SETTINGS
+						</button>
+						{#if expandedSections.settings}
+						<div class="items-list" transition:slide>
+							{#each filteredSettings as s}
+								{#if s.path}
+									<a href={s.path} class="section-item" onclick={() => showNav = false}>
+										<span class="item-icon">{s.icon}</span> {s.name}
+									</a>
+								{:else}
+									<button class="section-item" onclick={() => { s.action?.(); showNav = false; }}>
+										<span class="item-icon">{s.icon}</span> {s.name}
+									</button>
+								{/if}
+							{/each}
+						</div>
+						{/if}
+					</div>
+					{/if}
 				</div>
 
 				<div class="panel-footer">
@@ -341,17 +466,21 @@
 		backdrop-filter: blur(4px);
 		z-index: 2000;
 		display: flex;
-		align-items: center;
 		justify-content: center;
+		padding-top: 5vh; /* Fixed to top with offset */
 	}
 
 	.nav-panel {
 		width: 580px;
+		height: fit-content;
+		max-height: 85vh;
 		background: #111827;
 		border: 1px solid var(--border-color);
 		border-radius: 1.5rem;
 		padding: 1.5rem;
 		box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+		display: flex;
+		flex-direction: column;
 	}
 
 	.panel-search input {
@@ -369,18 +498,18 @@
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: 1rem;
-		margin-bottom: 2rem;
+		margin-bottom: 1rem;
 	}
 
 	.action-btn {
 		background: #1f2937;
 		border: 1px solid transparent;
 		border-radius: 0.75rem;
-		padding: 1.5rem;
+		padding: 1rem; /* Closer text */
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 1rem;
+		gap: 0.75rem; /* Closer icons */
 		cursor: pointer;
 		transition: all 0.2s;
 	}
@@ -408,7 +537,7 @@
 	}
 
 	.action-label {
-		font-size: 0.9rem;
+		font-size: 0.85rem; /* Slightly smaller labels */
 		font-weight: 700;
 		color: var(--text-primary);
 	}
@@ -416,19 +545,40 @@
 	.panel-sections {
 		display: flex;
 		flex-direction: column;
-		gap: 2rem;
+		gap: 0.5rem; /* Closer sections */
 		padding: 0 0.5rem;
+		overflow-y: auto;
+		scrollbar-width: thin;
 	}
 
 	.section-header {
-		font-size: 0.75rem;
+		width: 100%;
+		background: none;
+		border: none;
+		font-size: 0.7rem; /* Smaller headers */
 		font-weight: 900;
 		color: var(--text-muted);
 		letter-spacing: 0.1em;
-		margin-bottom: 0.75rem;
+		margin-bottom: 0.25rem;
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		cursor: pointer;
+		padding: 0.4rem 0;
+		transition: color 0.2s;
+	}
+
+	.section-header:hover {
+		color: var(--text-secondary);
+	}
+
+	.chevron {
+		transition: transform 0.2s;
+		display: inline-block;
+	}
+
+	.chevron.collapsed {
+		transform: rotate(-90deg);
 	}
 
 	.section-item {
@@ -436,12 +586,12 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-		padding: 0.6rem 0.75rem;
+		padding: 0.5rem 0.75rem; /* Tighter items */
 		border-radius: 0.5rem;
 		background: none;
 		border: none;
 		color: var(--text-secondary);
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		font-weight: 600;
 		cursor: pointer;
 		text-align: left;
@@ -453,31 +603,41 @@
 		color: white;
 	}
 
+	.section-item.add { color: var(--accent-blue); }
+
 	.items-list {
-		max-height: 200px;
-		overflow-y: auto;
-		scrollbar-width: none;
+		display: flex;
+		flex-direction: column;
 	}
 
-	.items-list::-webkit-scrollbar { display: none; }
+	.initials-small {
+		width: 18px;
+		height: 18px;
+		background: var(--bg-secondary);
+		border-radius: 50%;
+		font-size: 0.55rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-secondary);
+		border: 1px solid var(--border-color);
+	}
 
 	.section-divider {
 		height: 1px;
 		background: #1f2937;
-		margin: 1rem 0;
+		margin: 0.5rem 0;
 	}
 
-	.section-item.add { color: var(--accent-blue); }
-
 	.panel-footer {
-		margin-top: 2.5rem;
-		padding-top: 1.5rem;
+		margin-top: 1rem;
+		padding-top: 1rem;
 		border-top: 1px solid var(--border-color);
 		text-align: center;
 	}
 
 	.footer-brand {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--text-muted);
 		line-height: 1.5;
 	}
