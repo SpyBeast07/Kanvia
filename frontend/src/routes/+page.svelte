@@ -32,6 +32,16 @@
 	let assigningTaskId = $state<number | null>(null);
 	let projectMembers = $state<any[]>([]);
 	let isSearching = $state(false);
+	let userSearchQuery = $state('');
+
+	const nonMembers = $derived(() => {
+		const memberIds = projectMembers.map(m => m.id);
+		return auth.users.filter(u => 
+			!memberIds.includes(u.id) && 
+			(u.name.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+			 u.email.toLowerCase().includes(userSearchQuery.toLowerCase()))
+		);
+	});
 
 	function findColumnAtPosition(x: number, y: number): Column | null {
 		const cols = projectStore.columns;
@@ -232,6 +242,18 @@
 			projectMembers = await apiRequest(`/projects/${projectStore.currentProject.id}/members`);
 		} catch (err) {
 			console.error('Failed to load members:', err);
+		}
+	}
+
+	async function handleAddMember(user: any) {
+		if (!projectStore.currentProject) return;
+		try {
+			await apiRequest(`/projects/${projectStore.currentProject.id}/members/${user.id}`, 'POST');
+			await loadMembers();
+			userSearchQuery = '';
+			ui.alert(`Added ${user.name} to project`);
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
 		}
 	}
 
@@ -566,10 +588,36 @@
 				transition:scale
 			>
 				<div class="modal-header">
-					<h3 id="modal-title">Team Members</h3>
+					<h3 id="modal-title">Project Members</h3>
 					<button class="close-modal-btn" onclick={() => showPeopleModal = false}>×</button>
 				</div>
+				
+				<div class="user-search-box">
+					<input 
+						type="text" 
+						placeholder="Search users to add to project..." 
+						bind:value={userSearchQuery}
+					/>
+				</div>
+
+				{#if userSearchQuery && nonMembers().length > 0}
+					<div class="search-results-mini">
+						<div class="results-label">ADD TO PROJECT</div>
+						{#each nonMembers() as user}
+							<button class="member-row search-result" onclick={() => handleAddMember(user)}>
+								<div class="user-badge-small">{user.name.split(' ').map((n: any)=>n[0]).join('')}</div>
+								<div class="member-info">
+									<div class="member-name">{user.name}</div>
+									<div class="member-email">{user.email}</div>
+								</div>
+								<div class="add-icon">+</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
+
 				<div class="members-list">
+					<div class="results-label">CURRENT MEMBERS</div>
 					{#each projectMembers as member}
 						<div class="member-row">
 							<div class="user-badge">{member.name.split(' ').map((n: any)=>n[0]).join('')}</div>
@@ -1334,6 +1382,56 @@
 		border-radius: 4px;
 		color: var(--text-secondary);
 		text-transform: uppercase;
+	}
+
+	.user-search-box {
+		padding: 1rem;
+		border-bottom: 1px solid var(--border-color);
+	}
+
+	.user-search-box input {
+		width: 100%;
+		background: #030712;
+		border: 1.5px solid var(--border-color);
+		border-radius: 0.75rem;
+		padding: 0.75rem 1rem;
+		color: white;
+		font-size: 0.9rem;
+	}
+
+	.user-search-box input:focus {
+		border-color: var(--accent-blue);
+		outline: none;
+	}
+
+	.search-results-mini {
+		max-height: 200px;
+		overflow-y: auto;
+		background: rgba(0,0,0,0.2);
+		border-bottom: 1px solid var(--border-color);
+		padding: 0.5rem;
+	}
+
+	.results-label {
+		font-size: 0.65rem;
+		font-weight: 900;
+		color: var(--text-muted);
+		padding: 0.5rem 1rem;
+		letter-spacing: 0.05em;
+	}
+
+	.search-result {
+		width: 100%;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.add-icon {
+		color: var(--accent-blue);
+		font-weight: 900;
+		font-size: 1.25rem;
 	}
 
 	/* Pin Button */

@@ -3,6 +3,8 @@ from datetime import datetime
 from enum import Enum
 from sqlmodel import Field, Relationship, SQLModel
 
+from sqlalchemy import event
+
 class UserRole(str, Enum):
     ADMIN = "ADMIN"
     MEMBER = "MEMBER"
@@ -59,3 +61,18 @@ class Task(SQLModel, table=True):
     project: Project = Relationship(back_populates="tasks")
     assignee: Optional[User] = Relationship(sa_relationship_kwargs={"foreign_keys": "Task.assigned_to"})
     creator: User = Relationship(sa_relationship_kwargs={"foreign_keys": "Task.created_by"})
+
+# Default columns for new projects
+DEFAULT_COLUMNS = ["Not Now", "Maybe?", "Done"]
+
+@event.listens_for(Project, "after_insert")
+def receive_after_insert(mapper, connection, target):
+    # This creates the default columns immediately after a project is inserted
+    for i, col_name in enumerate(DEFAULT_COLUMNS):
+        connection.execute(
+            ProjectColumn.__table__.insert().values(
+                name=col_name,
+                order=i,
+                project_id=target.id
+            )
+        )

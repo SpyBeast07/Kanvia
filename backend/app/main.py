@@ -64,7 +64,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 @app.get("/api/users", response_model=List[UserRead])
 def list_users(
-    current_user: User = Depends(check_admin),
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
     return session.exec(select(User)).all()
@@ -85,14 +85,10 @@ def create_project(
     # Auto-add creator as member
     member_link = ProjectMemberLink(user_id=current_user.id, project_id=new_project.id)
     session.add(member_link)
-    
-    # Seed default columns
-    default_columns = ["Not Now", "Maybe?", "Done"]
-    for i, col_name in enumerate(default_columns):
-        col = ProjectColumn(name=col_name, order=i, project_id=new_project.id)
-        session.add(col)
-        
     session.commit()
+    
+    # Default columns are now handled by SQLAlchemy event listener in models.py
+    
     return new_project
 
 @app.post("/api/projects/{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)

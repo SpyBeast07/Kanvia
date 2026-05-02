@@ -1,6 +1,7 @@
 from sqlmodel import Session, create_engine, select
 from app.models import User, Project, ProjectMemberLink, Task, UserRole
 from app.auth import get_password_hash
+from app.database import init_db
 import os
 from dotenv import load_dotenv
 
@@ -10,6 +11,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 
 def seed():
+    init_db()
     with Session(engine) as session:
         # 1. Create Admin User
         admin = session.exec(select(User).where(User.email == "admin@example.com")).first()
@@ -53,17 +55,31 @@ def seed():
             session.add(member)
             session.commit()
 
-        # 3. Create initial tasks if empty
-        existing_tasks = session.exec(select(Task).where(Task.project_id == project.id)).all()
-        if not existing_tasks:
-            tasks = [
-                Task(title="First, rename this card", status="IN_PROGRESS", project_id=project.id, assigned_to=admin.id),
-                Task(title="Second, move this card to NOT NOW", status="IN_PROGRESS", project_id=project.id, assigned_to=admin.id),
-                Task(title="Implement Drag & Drop", status="TODO", project_id=project.id, assigned_to=admin.id),
-            ]
-            session.add_all(tasks)
+            print("Seeded Kanvia Playground tasks.")
+
+        # 4. Create "Playground" Project
+        playground = session.exec(select(Project).where(Project.name == "Playground")).first()
+        if not playground:
+            playground = Project(name="Playground", created_by=admin.id)
+            session.add(playground)
             session.commit()
-            print("Seeded initial tasks.")
+            session.refresh(playground)
+            print(f"Created Project: {playground.name}")
+            
+            # Add Admin and Member1 as members
+            session.add(ProjectMemberLink(user_id=admin.id, project_id=playground.id))
+            session.add(ProjectMemberLink(user_id=member1.id, project_id=playground.id))
+            session.commit()
+
+            # Add Test Tasks to Playground
+            test_tasks = [
+                Task(title="Try dragging this to Maybe", status="Not Now", project_id=playground.id, created_by=admin.id),
+                Task(title="This task is for testing", status="Maybe?", project_id=playground.id, created_by=admin.id),
+                Task(title="Completed test task", status="Done", project_id=playground.id, created_by=admin.id),
+            ]
+            session.add_all(test_tasks)
+            session.commit()
+            print("Seeded Playground test tasks.")
 
 if __name__ == "__main__":
     seed()

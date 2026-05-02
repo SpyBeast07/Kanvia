@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 from .database import get_session
-from .models import User
+from .models import User, UserRole
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-keep-it-safe")
@@ -55,7 +55,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session: Session
     return user
 
 def check_admin(user: User = Depends(get_current_user)):
-    if user.role != "ADMIN":
+    from .models import UserRole
+    if user.role != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operation restricted to admins"

@@ -27,11 +27,15 @@
 	}
 
 	const filteredProjects = $derived(
-		projectStore.projects.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		projectStore.projects.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
 	const filteredUsers = $derived(
-		auth.users.filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+		auth.users.filter(
+			(u) =>
+				u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				u.email.toLowerCase().includes(searchQuery.toLowerCase())
+		)
 	);
 
 	const shortcuts = [
@@ -41,7 +45,7 @@
 	];
 
 	const filteredShortcuts = $derived(
-		shortcuts.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		shortcuts.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
 	const settingsOptions = [
@@ -50,7 +54,7 @@
 	];
 
 	const filteredSettings = $derived(
-		settingsOptions.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		settingsOptions.filter((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
 	const showShortcuts = $derived(searchQuery && filteredShortcuts.length > 0);
@@ -90,6 +94,9 @@
 				try {
 					const user = await apiRequest('/auth/me');
 					auth.setUser(user);
+					if (user.role === 'ADMIN') {
+						auth.loadUsers();
+					}
 				} catch (err) {
 					auth.logout();
 					return;
@@ -178,32 +185,48 @@
 
 <div class="app-container">
 	{#if !isAuthPage}
-	<header class="main-header">
-		<button class="logo-btn" onclick={toggleNav}>
-			<span class="logo-icon">🎨</span>
-			<span class="logo-text">Kanvia</span>
-			<div class="kbd-shortcut">J</div>
-			<span class="chevron">⌄</span>
-		</button>
+		<header class="main-header">
+			<button class="logo-btn" onclick={toggleNav}>
+				<span class="logo-icon">🎨</span>
+				<span class="logo-text">Kanvia</span>
+				<div class="kbd-shortcut">J</div>
+				<span class="chevron">⌄</span>
+			</button>
 
-		<div class="header-nav">
-			<a href="/projects" class="nav-circle-btn" aria-label="View Projects">
-				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-			</a>
-			<div class="header-line"></div>
-			<h1 class="project-title">
-				{projectStore.currentProject?.name || 'Kanvia'}
-			</h1>
-			<div class="header-line"></div>
-			<a href="/settings" class="nav-circle-btn">
-				{#if auth.user}
-					<span class="initials">{auth.user.name.split(' ').map(n => n[0]).join('')}</span>
-				{:else}
-					⚙️
-				{/if}
-			</a>
-		</div>
-	</header>
+			<div class="header-nav">
+				<a href="/projects" class="nav-circle-btn" aria-label="View Projects">
+					<svg
+						width="20"
+						height="20"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+						></path></svg
+					>
+				</a>
+				<div class="header-line"></div>
+				<h1 class="project-title">
+					{projectStore.currentProject?.name || 'Kanvia'}
+				</h1>
+				<div class="header-line"></div>
+				<a href="/settings" class="nav-circle-btn">
+					{#if auth.user}
+						<span class="initials"
+							>{auth.user.name
+								.split(' ')
+								.map((n) => n[0])
+								.join('')}</span
+						>
+					{:else}
+						⚙️
+					{/if}
+				</a>
+			</div>
+		</header>
 	{/if}
 
 	<main class="main-content">
@@ -211,16 +234,16 @@
 	</main>
 
 	{#if showNav}
-		<div 
+		<div
 			transition:fade={{ duration: 150 }}
 			class="overlay"
-			onclick={() => showNav = false}
+			onclick={() => (showNav = false)}
 			role="button"
 			tabindex="0"
 			onkeydown={(e) => e.key === 'Escape' && (showNav = false)}
 		>
-			<div 
-				class="nav-panel glass" 
+			<div
+				class="nav-panel glass"
 				onclick={(e) => e.stopPropagation()}
 				onkeydown={(e) => e.stopPropagation()}
 				role="menu"
@@ -228,125 +251,159 @@
 				in:scale={{ duration: 200, start: 0.95 }}
 			>
 				<div class="panel-search">
-					<input 
-						type="text" 
+					<input
+						type="text"
 						use:focusOnMount
 						bind:value={searchQuery}
 						onkeydown={handleSearchKeydown}
-						placeholder="Type to jump to a Projects, person, place, or tag..." 
+						placeholder="Type to jump to a Projects, person, place, or tag..."
 					/>
 				</div>
 
 				{#if !searchQuery}
-				<div class="action-grid" transition:slide>
-					{#each shortcuts as s, i}
-					<button class="action-btn" onclick={() => { ui.activeFilter = s.filter as any; goto(s.path); showNav = false; }}>
-						<div class="action-icon-box">
-							<span class="icon">{s.icon}</span>
-							<span class="kbd-shortcut">{i + 1}</span>
-						</div>
-						<span class="action-label">{s.name}</span>
-					</button>
-					{/each}
-				</div>
-				<div class="section-divider"></div>
+					<div class="action-grid" transition:slide>
+						{#each shortcuts as s, i}
+							<button
+								class="action-btn"
+								onclick={() => {
+									ui.activeFilter = s.filter as any;
+									goto(s.path);
+									showNav = false;
+								}}
+							>
+								<div class="action-icon-box">
+									<span class="icon">{s.icon}</span>
+									<span class="kbd-shortcut">{i + 1}</span>
+								</div>
+								<span class="action-label">{s.name}</span>
+							</button>
+						{/each}
+					</div>
+					<div class="section-divider"></div>
 				{/if}
 
 				<div class="panel-sections">
 					{#if showShortcuts}
-					<div class="section" transition:slide>
-						<button class="section-header" onclick={() => toggleSection('shortcuts')}>
-							<span class="chevron" class:collapsed={!expandedSections.shortcuts}>⌄</span> SHORTCUTS
-						</button>
-						{#if expandedSections.shortcuts}
-						<div class="items-list" transition:slide>
-							{#each filteredShortcuts as s}
-								<button class="section-item" onclick={() => { ui.activeFilter = s.filter as any; goto(s.path); showNav = false; }}>
-									<span class="item-icon">{s.icon}</span> {s.name}
-								</button>
-							{/each}
+						<div class="section" transition:slide>
+							<button class="section-header" onclick={() => toggleSection('shortcuts')}>
+								<span class="chevron" class:collapsed={!expandedSections.shortcuts}>⌄</span> SHORTCUTS
+							</button>
+							{#if expandedSections.shortcuts}
+								<div class="items-list" transition:slide>
+									{#each filteredShortcuts as s}
+										<button
+											class="section-item"
+											onclick={() => {
+												ui.activeFilter = s.filter as any;
+												goto(s.path);
+												showNav = false;
+											}}
+										>
+											<span class="item-icon">{s.icon}</span>
+											{s.name}
+										</button>
+									{/each}
+								</div>
+							{/if}
 						</div>
+						{#if showProjects || showPeople || showSettings}
+							<div class="section-divider"></div>
 						{/if}
-					</div>
-					{#if showProjects || showPeople || showSettings}
-						<div class="section-divider"></div>
-					{/if}
 					{/if}
 
 					{#if showProjects}
-					<div class="section">
-						<button class="section-header" onclick={() => toggleSection('projects')}>
-							<span class="chevron" class:collapsed={!expandedSections.projects}>⌄</span> PROJECTS
-						</button>
-						{#if expandedSections.projects}
-						<div class="items-list" transition:slide>
-							{#if !searchQuery && auth.user?.role === 'ADMIN'}
-								<button class="section-item add" onclick={handleAddProject}>
-									<span class="item-icon">+</span> Add a project
-								</button>
+						<div class="section">
+							<button class="section-header" onclick={() => toggleSection('projects')}>
+								<span class="chevron" class:collapsed={!expandedSections.projects}>⌄</span> PROJECTS
+							</button>
+							{#if expandedSections.projects}
+								<div class="items-list" transition:slide>
+									{#if !searchQuery && auth.user?.role === 'ADMIN'}
+										<button class="section-item add" onclick={handleAddProject}>
+											<span class="item-icon">+</span> Add a project
+										</button>
+									{/if}
+									{#each filteredProjects as project}
+										<button
+											class="section-item"
+											onclick={() => {
+												projectStore.setCurrentProject(project);
+												goto('/');
+												showNav = false;
+											}}
+										>
+											<span class="item-icon">📄</span>
+											{project.name}
+										</button>
+									{/each}
+								</div>
 							{/if}
-							{#each filteredProjects as project}
-								<button class="section-item" onclick={() => { projectStore.setCurrentProject(project); goto('/'); showNav = false; }}>
-									<span class="item-icon">📄</span> {project.name}
-								</button>
-							{/each}
 						</div>
+						{#if showPeople || showSettings}
+							<div class="section-divider"></div>
 						{/if}
-					</div>
-					{#if showPeople || showSettings}
-						<div class="section-divider"></div>
-					{/if}
 					{/if}
 
 					{#if showPeople}
-					<div class="section">
-						<button class="section-header" onclick={() => toggleSection('people')}>
-							<span class="chevron" class:collapsed={!expandedSections.people}>⌄</span> PEOPLE
-						</button>
-						{#if expandedSections.people}
-						<div class="items-list" transition:slide>
-							{#if !searchQuery && auth.user?.role === 'ADMIN'}
-								<button class="section-item add" onclick={handleInviteUser}>
-									<span class="item-icon">+</span> Invite people
-								</button>
-							{/if}
-							{#each filteredUsers as user}
-								<div class="section-item">
-									<div class="item-icon initials-small">
-										{user.name.split(' ').map(n => n[0]).join('')}
-									</div>
-									{user.name}
+						<div class="section">
+							<button class="section-header" onclick={() => toggleSection('people')}>
+								<span class="chevron" class:collapsed={!expandedSections.people}>⌄</span> PEOPLE
+							</button>
+							{#if expandedSections.people}
+								<div class="items-list" transition:slide>
+									{#if !searchQuery && auth.user?.role === 'ADMIN'}
+										<button class="section-item add" onclick={handleInviteUser}>
+											<span class="item-icon">+</span> Invite people
+										</button>
+									{/if}
+									{#each filteredUsers as user}
+										<div class="section-item">
+											<div class="item-icon initials-small">
+												{user.name
+													.split(' ')
+													.map((n) => n[0])
+													.join('')}
+											</div>
+											{user.name}
+										</div>
+									{/each}
 								</div>
-							{/each}
+							{/if}
 						</div>
+						{#if showSettings}
+							<div class="section-divider"></div>
 						{/if}
-					</div>
-					{#if showSettings}
-						<div class="section-divider"></div>
-					{/if}
 					{/if}
 
 					{#if showSettings}
-					<div class="section">
-						<button class="section-header" onclick={() => toggleSection('settings')}>
-							<span class="chevron" class:collapsed={!expandedSections.settings}>⌄</span> SETTINGS
-						</button>
-						{#if expandedSections.settings}
-						<div class="items-list" transition:slide>
-							{#each filteredSettings as s}
-								{#if s.path}
-									<a href={s.path} class="section-item" onclick={() => showNav = false}>
-										<span class="item-icon">{s.icon}</span> {s.name}
-									</a>
-								{:else}
-									<button class="section-item" onclick={() => { s.action?.(); showNav = false; }}>
-										<span class="item-icon">{s.icon}</span> {s.name}
-									</button>
-								{/if}
-							{/each}
+						<div class="section">
+							<button class="section-header" onclick={() => toggleSection('settings')}>
+								<span class="chevron" class:collapsed={!expandedSections.settings}>⌄</span> SETTINGS
+							</button>
+							{#if expandedSections.settings}
+								<div class="items-list" transition:slide>
+									{#each filteredSettings as s}
+										{#if s.path}
+											<a href={s.path} class="section-item" onclick={() => (showNav = false)}>
+												<span class="item-icon">{s.icon}</span>
+												{s.name}
+											</a>
+										{:else}
+											<button
+												class="section-item"
+												onclick={() => {
+													s.action?.();
+													showNav = false;
+												}}
+											>
+												<span class="item-icon">{s.icon}</span>
+												{s.name}
+											</button>
+										{/if}
+									{/each}
+								</div>
+							{/if}
 						</div>
-						{/if}
-					</div>
 					{/if}
 				</div>
 
@@ -401,9 +458,14 @@
 		color: var(--text-primary);
 	}
 
-	.logo-icon { font-size: 1.25rem; }
-	.logo-text { font-weight: 900; font-size: 1.25rem; }
-	
+	.logo-icon {
+		font-size: 1.25rem;
+	}
+	.logo-text {
+		font-weight: 900;
+		font-size: 1.25rem;
+	}
+
 	.kbd-shortcut {
 		background: #1e293b;
 		color: var(--text-secondary);
@@ -435,9 +497,16 @@
 		text-decoration: none;
 	}
 
-	.initials { font-size: 0.75rem; font-weight: 900; }
+	.initials {
+		font-size: 0.75rem;
+		font-weight: 900;
+	}
 
-	.header-line { flex: 1; height: 1px; background: #232d38; }
+	.header-line {
+		flex: 1;
+		height: 1px;
+		background: #232d38;
+	}
 
 	.project-title {
 		font-size: 2.25rem;
@@ -449,7 +518,7 @@
 	.overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0,0,0,0.85);
+		background: rgba(0, 0, 0, 0.85);
 		backdrop-filter: blur(4px);
 		z-index: 2000;
 		display: flex;
@@ -510,8 +579,6 @@
 		position: relative;
 		font-size: 1.5rem;
 	}
-
-
 
 	.action-label {
 		font-size: 0.85rem;
@@ -580,7 +647,9 @@
 		color: white;
 	}
 
-	.section-item.add { color: var(--accent-blue); }
+	.section-item.add {
+		color: var(--accent-blue);
+	}
 
 	.items-list {
 		display: flex;
