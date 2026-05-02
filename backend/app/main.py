@@ -122,6 +122,35 @@ def add_project_member(
     session.commit()
     return {"message": f"User {user_to_add.name} added to project {project.name}"}
 
+@app.delete("/api/projects/{project_id}/members/{user_id}")
+def remove_project_member(
+    project_id: int,
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    # Check if project exists
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if current_user is the creator or an admin
+    if project.created_by != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to remove members from this project")
+    
+    # Prevent removing the project creator
+    if user_id == project.created_by:
+        raise HTTPException(status_code=400, detail="Cannot remove the project creator")
+    
+    # Check if the member link exists
+    link = session.get(ProjectMemberLink, (user_id, project_id))
+    if not link:
+        raise HTTPException(status_code=404, detail="User is not a member of this project")
+    
+    session.delete(link)
+    session.commit()
+    return {"message": "Member removed successfully"}
+
 @app.get("/api/projects", response_model=List[ProjectRead])
 def list_projects(
     current_user: User = Depends(get_current_user),

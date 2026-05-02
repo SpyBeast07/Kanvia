@@ -11,6 +11,7 @@
 	let showAddMemberModal = $state(false);
 	let targetProjectId = $state<number | null>(null);
 	let targetProjectName = $state('');
+	let targetProjectCreatorId = $state<number | null>(null);
 	let userSearchQuery = $state('');
 	let projectMembers = $state<any[]>([]);
 
@@ -61,6 +62,10 @@
 		e.stopPropagation();
 		targetProjectId = projectId;
 		targetProjectName = projectName;
+		
+		const project = projectStore.projects.find(p => p.id === projectId);
+		targetProjectCreatorId = project?.created_by || null;
+		
 		showAddMemberModal = true;
 		userSearchQuery = '';
 		
@@ -79,6 +84,20 @@
 			await apiRequest(`/projects/${targetProjectId}/members/${user.id}`, 'POST');
 			projectMembers = [...projectMembers, { ...user, role: 'MEMBER' }];
 			ui.alert(`Added ${user.name} to project`);
+		} catch (err: any) {
+			ui.alert(err.message, 'Error');
+		}
+	}
+
+	async function handleRemoveMember(userId: number, userName: string) {
+		if (targetProjectId === null) return;
+		const confirmed = await ui.confirm(`Are you sure you want to remove ${userName} from this project?`, 'Remove Member');
+		if (!confirmed) return;
+
+		try {
+			await apiRequest(`/projects/${targetProjectId}/members/${userId}`, 'DELETE');
+			projectMembers = projectMembers.filter(m => m.id !== userId);
+			ui.alert(`Removed ${userName} from project`);
 		} catch (err: any) {
 			ui.alert(err.message, 'Error');
 		}
@@ -181,6 +200,11 @@
 								<div class="member-email">{member.email}</div>
 							</div>
 							<div class="member-role">{member.role}</div>
+							{#if targetProjectCreatorId !== member.id && (auth.user?.role === 'ADMIN' || auth.user?.id === targetProjectCreatorId)}
+								<button class="remove-member-btn" onclick={() => handleRemoveMember(member.id, member.name)} title="Remove Member">
+									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+								</button>
+							{/if}
 						</div>
 					{:else}
 						<div class="empty-state">No members found.</div>
@@ -520,5 +544,23 @@
 		padding: 2rem;
 		color: var(--text-muted);
 		font-style: italic;
+	}
+
+	.remove-member-btn {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0.4rem;
+		border-radius: 0.4rem;
+		transition: all 0.2s;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.remove-member-btn:hover {
+		background: rgba(239, 68, 68, 0.1);
+		color: #ef4444;
 	}
 </style>
