@@ -66,7 +66,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 @app.post("/api/projects", response_model=ProjectRead)
 def create_project(
     project_data: ProjectCreate, 
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(check_admin),
     session: Session = Depends(get_session)
 ):
     new_project = Project(name=project_data.name, created_by=current_user.id)
@@ -80,6 +80,33 @@ def create_project(
     session.commit()
     
     return new_project
+
+@app.post("/api/projects/{project_id}/members/{user_id}", status_code=status.HTTP_201_CREATED)
+def add_project_member(
+    project_id: int,
+    user_id: int,
+    current_user: User = Depends(check_admin),
+    session: Session = Depends(get_session)
+):
+    # Check if project exists
+    project = session.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user exists
+    user_to_add = session.get(User, user_id)
+    if not user_to_add:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if already a member
+    existing = session.get(ProjectMemberLink, (user_id, project_id))
+    if existing:
+        raise HTTPException(status_code=400, detail="User is already a member of this project")
+    
+    new_member = ProjectMemberLink(user_id=user_id, project_id=project_id)
+    session.add(new_member)
+    session.commit()
+    return {"message": f"User {user_to_add.name} added to project {project.name}"}
 
 @app.get("/api/projects", response_model=List[ProjectRead])
 def list_projects(
@@ -98,10 +125,10 @@ def create_task(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
-    # Check if project exists and user has access (simplified for now)
-    project = session.get(Project, task_data.project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+    # Check if user is a member of the project
+    member = session.get(ProjectMemberLink, (current_user.id, task_data.project_id))
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     
     new_task = Task(**task_data.dict())
     session.add(new_task)
@@ -115,6 +142,11 @@ def list_tasks(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
+    # Check if user is a member of the project
+    member = session.get(ProjectMemberLink, (current_user.id, project_id))
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this project")
+
     statement = select(Task).where(Task.project_id == project_id)
     return session.exec(statement).all()
 
@@ -128,6 +160,11 @@ def update_task(
     db_task = session.get(Task, task_id)
     if not db_task:
         raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user is a member of the project the task belongs to
+    member = session.get(ProjectMemberLink, (current_user.id, db_task.project_id))
+    if not member:
+        raise HTTPException(status_code=403, detail="Not a member of this project")
     
     update_data = task_update.dict(exclude_unset=True)
     for key, value in update_data.items():

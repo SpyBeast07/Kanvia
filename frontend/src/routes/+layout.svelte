@@ -7,6 +7,7 @@
 
 	let { children } = $props();
 	let showNav = $state(false);
+	let showProjectMenu = $state(false);
 
 	const menuItems = [
 		{ name: 'Dashboard', icon: '📊', path: '/' },
@@ -99,12 +100,41 @@
 		>
 			SEARCH <span style="background: #1e293b; padding: 0.2rem 0.5rem; border-radius: 0.25rem; color: #94a3b8; margin-left: 0.75rem;">K</span>
 		</button>
-		<button 
-			onclick={() => goto('/projects')}
-			style="background: none; border: none; color: inherit; font: inherit; cursor: pointer; display: flex; align-items: center;"
+		<div 
+			style="display: flex; align-items: center; position: relative;"
 		>
-			PROJECTS <span style="background: #1e293b; padding: 0.2rem 0.5rem; border-radius: 0.25rem; color: #94a3b8; margin-left: 0.75rem;">N</span>
-		</button>
+			<button 
+				onclick={() => showProjectMenu = !showProjectMenu}
+				style="background: none; border: none; color: inherit; font: inherit; cursor: pointer; display: flex; align-items: center;"
+			>
+				PROJECTS <span style="background: #1e293b; padding: 0.2rem 0.5rem; border-radius: 0.25rem; color: #94a3b8; margin-left: 0.75rem;">N</span>
+			</button>
+			
+			{#if showProjectMenu}
+				<div 
+					transition:fade={{ duration: 100 }}
+					class="glass" 
+					style="position: absolute; bottom: 3rem; right: 0; width: 220px; padding: 0.5rem; text-align: left; z-index: 1001; background: #161e27; border: 1.5px solid #1e293b;"
+				>
+					<div style="padding: 0.5rem; font-size: 0.65rem; color: #475569; letter-spacing: 0.1em;">SWITCH PROJECT</div>
+					<button 
+						onclick={() => { goto('/'); showProjectMenu = false; }}
+						style="width: 100%; text-align: left; padding: 0.75rem; border-radius: 0.35rem; background: transparent; border: none; color: white; cursor: pointer; font-size: 0.85rem; font-weight: 700;"
+						class="project-menu-item"
+					>
+						Kanvia Playground
+					</button>
+					<div style="height: 1px; background: #1e293b; margin: 0.25rem 0;"></div>
+					<button 
+						onclick={() => { goto('/projects'); showProjectMenu = false; }}
+						style="width: 100%; text-align: left; padding: 0.75rem; border-radius: 0.35rem; background: transparent; border: none; color: #3b82f6; cursor: pointer; font-size: 0.85rem; font-weight: 800;"
+						class="project-menu-item"
+					>
+						Manage Projects →
+					</button>
+				</div>
+			{/if}
+		</div>
 	</footer>
 
 	<!-- Global Nav Overlay -->
