@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import favicon from '$lib/assets/favicon.svg';
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -56,7 +55,7 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href="/favicon.svg" />
 	<title>Kanvia | Playground</title>
 </svelte:head>
 

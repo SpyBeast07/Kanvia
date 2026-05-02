@@ -16,11 +16,24 @@ A Kanban-style team task manager built with SvelteKit and FastAPI.
 
 ## Setup Instructions
 
+### Database Setup (Docker)
+
+1. Ensure you have Docker installed.
+2. Navigate to the `db` directory:
+   ```bash
+   cd db
+   ```
+3. Start the PostgreSQL container:
+   ```bash
+   docker-compose up -d
+   ```
+   *This will automatically initialize the schema using `init.sql`.*
+
 ### Prerequisites
 
 - Node.js (v18+)
 - Python (3.10+)
-- PostgreSQL
+- Docker (for PostgreSQL)
 
 ### Backend Setup
 
