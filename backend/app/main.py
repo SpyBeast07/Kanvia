@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from datetime import datetime
 
 from .database import init_db, get_session
-from .models import User, Project, Task, ProjectMemberLink
+from .models import User, Project, Task, ProjectMemberLink, UserRole
 from .schemas import (
     UserCreate, UserRead, ProjectCreate, ProjectRead,
     TaskCreate, TaskRead, TaskUpdate, Token, LoginRequest
@@ -61,6 +61,13 @@ def login(credentials: LoginRequest, session: Session = Depends(get_session)):
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
+@app.get("/api/users", response_model=List[UserRead])
+def list_users(
+    current_user: User = Depends(check_admin),
+    session: Session = Depends(get_session)
+):
+    return session.exec(select(User)).all()
+
 # --- Project Endpoints ---
 
 @app.post("/api/projects", response_model=ProjectRead)
@@ -113,6 +120,9 @@ def list_projects(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
+    if current_user.role == UserRole.ADMIN:
+        return session.exec(select(Project)).all()
+    
     # Get projects where the user is a member
     statement = select(Project).join(ProjectMemberLink).where(ProjectMemberLink.user_id == current_user.id)
     return session.exec(statement).all()
@@ -142,10 +152,11 @@ def list_tasks(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
-    # Check if user is a member of the project
-    member = session.get(ProjectMemberLink, (current_user.id, project_id))
-    if not member:
-        raise HTTPException(status_code=403, detail="Not a member of this project")
+    # Admins can see all tasks, others must be members
+    if current_user.role != UserRole.ADMIN:
+        member = session.get(ProjectMemberLink, (current_user.id, project_id))
+        if not member:
+            raise HTTPException(status_code=403, detail="Not a member of this project")
 
     statement = select(Task).where(Task.project_id == project_id)
     return session.exec(statement).all()

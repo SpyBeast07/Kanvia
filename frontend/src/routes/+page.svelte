@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { apiRequest } from '$lib/api/index';
 	import { ui } from '$lib/ui.svelte';
+	import { projectStore } from '$lib/projects.svelte';
+	import { auth } from '$lib/auth.svelte';
 
 	interface Task {
 		id: number;
@@ -26,38 +28,48 @@
 	let status = $state('Loading...');
 	let backendData = $state<BackendInfo | null>(null);
 	let tasks = $state<Task[]>([]);
-	let projects = $state<Project[]>([]);
-	let currentProjectId = $state<number | null>(null);
 	let isLoading = $state(true);
 
-	async function loadData() {
-		try {
-			// Check backend status
-			const health = await apiRequest('/status');
-			backendData = health;
+	// Reactive loading of tasks when project changes
+	$effect(() => {
+		if (projectStore.currentProject) {
+			loadTasks(projectStore.currentProject.id);
+		}
+	});
 
-			// Load projects and tasks
-			projects = await apiRequest('/projects');
-			if (projects.length > 0) {
-				currentProjectId = projects[0].id;
-				tasks = await apiRequest(`/projects/${currentProjectId}/tasks`);
-			}
+	async function loadTasks(projectId: number) {
+		isLoading = true;
+		try {
+			tasks = await apiRequest(`/projects/${projectId}/tasks`);
 			status = 'Connected';
 		} catch (err) {
+			console.error('Failed to load tasks:', err);
 			status = 'Disconnected';
-			console.error('Failed to load data:', err);
 		} finally {
 			isLoading = false;
 		}
 	}
 
+	async function loadHealth() {
+		try {
+			const health = await apiRequest('/status');
+			backendData = health;
+		} catch (err) {
+			console.error('Health check failed');
+		}
+	}
+
+
 	onMount(() => {
-		loadData();
+		loadHealth();
+		if (!projectStore.projects.length) {
+			projectStore.loadProjects();
+		}
 	});
 
 	async function addTask() {
-		if (!currentProjectId) {
-			ui.alert('No active project found. Please create a project first.');
+		if (!projectStore.currentProject) {
+			ui.alert('No active project found. Please select a project first.');
 			return;
 		}
 		const title = await ui.prompt('Enter task title:');
@@ -66,7 +78,7 @@
 		try {
 			const newTask = await apiRequest('/tasks', 'POST', {
 				title,
-				project_id: currentProjectId,
+				project_id: projectStore.currentProject.id,
 				status: 'IN_PROGRESS'
 			});
 			tasks = [...tasks, newTask];
@@ -183,7 +195,7 @@
 					>
 						<div style="font-size: 0.75rem; color: #475569; font-weight: 900; margin-bottom: 0.75rem; display: flex; gap: 0.75rem;">
 							<span>{getTasksByStatus('IN_PROGRESS').length - i}</span>
-							<span style="text-transform: uppercase; letter-spacing: 0.05em;">{projects.find(p => p.id === task.project_id)?.name || 'PROJECT'}</span>
+							<span style="text-transform: uppercase; letter-spacing: 0.05em;">{projectStore.currentProject?.name || 'PROJECT'}</span>
 						</div>
 						<h2 style="font-size: 1.35rem; font-weight: 800; color: #ffffff; margin-bottom: 1.25rem;">{task.title}</h2>
 						<div style="display: flex; align-items: center; gap: 1.25rem;">
@@ -193,7 +205,9 @@
 									{new Date(task.created_at).toLocaleDateString()} 
 									{task.due_date ? `• DUE ${new Date(task.due_date).toLocaleDateString()}` : ''}
 								</div>
-								<div style="color: #94a3b8; font-weight: 900;">KUSHAGRA G.</div>
+								<div style="color: #94a3b8; font-weight: 900; text-transform: uppercase;">
+									{auth.user?.name || 'USER'}
+								</div>
 							</div>
 						</div>
 					</div>

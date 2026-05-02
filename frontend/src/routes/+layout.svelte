@@ -5,8 +5,9 @@
 	import { goto } from '$app/navigation';
 	import { fade } from 'svelte/transition';
 	import { auth } from '$lib/auth.svelte';
-	import { apiRequest } from '$lib/api';
+	import { apiRequest } from '$lib/api/index';
 	import { ui } from '$lib/ui.svelte';
+	import { projectStore } from '$lib/projects.svelte';
 	import Dialog from '$lib/components/Dialog.svelte';
 
 	let { children } = $props();
@@ -35,12 +36,19 @@
 					auth.setUser(user);
 				} catch (err) {
 					auth.logout();
+					return;
 				}
 			}
 
 			// Auth Guard
 			if (!auth.token && !isAuthPage) {
 				goto('/login');
+				return;
+			}
+
+			// Load projects if authenticated
+			if (auth.token) {
+				projectStore.loadProjects();
 			}
 		};
 
@@ -101,7 +109,9 @@
 		<div style="width: 100%; display: flex; align-items: center; gap: 1.5rem;">
 			<a href="/projects" style="background: #161e27; border: 1.5px solid #232d38; width: 44px; height: 44px; border-radius: 50%; color: white; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">🌐</a>
 			<div style="flex: 1; height: 1px; background: #232d38;"></div>
-			<h1 style="font-size: 2.25rem; font-weight: 900; color: #ffffff; letter-spacing: -0.04em;">Playground</h1>
+			<h1 style="font-size: 2.25rem; font-weight: 900; color: #ffffff; letter-spacing: -0.04em;">
+				{projectStore.currentProject?.name || 'Kanvia'}
+			</h1>
 			<div style="flex: 1; height: 1px; background: #232d38;"></div>
 			<a href="/settings" style="background: #161e27; border: 1.5px solid #232d38; width: 44px; height: 44px; border-radius: 50%; color: white; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
 				{#if auth.user}
@@ -156,7 +166,7 @@
 						style="width: 100%; text-align: left; padding: 0.75rem; border-radius: 0.35rem; background: transparent; border: none; color: white; cursor: pointer; font-size: 0.85rem; font-weight: 700;"
 						class="project-menu-item"
 					>
-						Kanvia Playground
+						{projectStore.currentProject?.name || 'Kanvia'}
 					</button>
 					<div style="height: 1px; background: #1e293b; margin: 0.25rem 0;"></div>
 					<button 

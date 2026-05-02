@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { apiRequest } from '$lib/api';
+	import { apiRequest } from '$lib/api/index';
 	import { auth } from '$lib/auth.svelte';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';

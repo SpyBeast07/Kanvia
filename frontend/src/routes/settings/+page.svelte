@@ -30,19 +30,19 @@
 					</div>
 					<div class="user-details">
 						<div class="detail-group">
-							<label>Full Name</label>
+							<span class="detail-label">Full Name</span>
 							<div class="value">{user.name}</div>
 						</div>
 						<div class="detail-group">
-							<label>Email Address</label>
+							<span class="detail-label">Email Address</span>
 							<div class="value">{user.email}</div>
 						</div>
 						<div class="detail-group">
-							<label>Role</label>
+							<span class="detail-label">Role</span>
 							<div class="value role-badge">{user.role}</div>
 						</div>
 						<div class="detail-group">
-							<label>Member Since</label>
+							<span class="detail-label">Member Since</span>
 							<div class="value">{new Date(user.created_at).toLocaleDateString()}</div>
 						</div>
 					</div>
@@ -148,7 +148,7 @@
 		gap: 0.5rem;
 	}
 
-	label {
+	.detail-label {
 		color: #64748b;
 		font-size: 0.75rem;
 		font-weight: 800;
