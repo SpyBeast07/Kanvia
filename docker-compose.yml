@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -22,6 +23,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
 
   frontend:
     build: ./frontend
@@ -29,6 +31,7 @@ services:
       PORT: 3000
     depends_on:
       - backend
+    restart: unless-stopped
 
   caddy:
     image: caddy:latest
@@ -39,6 +42,7 @@ services:
     depends_on:
       - frontend
       - backend
+    restart: unless-stopped
 
 volumes:
   postgres_data:
